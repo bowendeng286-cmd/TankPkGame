@@ -75,8 +75,8 @@ const TOUCH_FIRE_P2_DUAL_Y = CANVAS_H - 100;   // P2开火：右下角
 const TOUCH_FIRE_BUTTON_RADIUS = 45;      // 开火按钮半径
 
 // 旋转/移动阈值（优化手感）
-const TOUCH_ROTATION_THRESHOLD = 38;      // 进一步增大旋转区，便于精确控制
-const TOUCH_MOVEMENT_THRESHOLD = 42;      // 进一步增大移动门槛，保持合理间隔
+const TOUCH_ROTATION_THRESHOLD = 15;      // 进一步增大旋转区，便于精确控制
+const TOUCH_MOVEMENT_THRESHOLD = 70;      // 进一步增大移动门槛，保持合理间隔
 const JOYSTICK_SENSITIVITY = 1.2;         // 灵敏度系数
 
 // 视觉

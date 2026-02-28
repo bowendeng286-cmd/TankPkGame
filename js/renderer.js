@@ -138,63 +138,83 @@ class Renderer {
     drawTouchJoystick(joystick, playerIndex) {
         // 如果位置未初始化，不绘制
         if (joystick.centerX === 0 && joystick.centerY === 0) return;
-        
+
         const ctx = this.ctx;
+        const isDark = Theme.current === 'dark';
+        const cx = joystick.centerX;
+        const cy = joystick.centerY;
+
+        // 玩家对应颜色
+        const playerColor = playerIndex === 0 ? '#4CAF50' : '#2196F3';
+        const playerColorDark = playerIndex === 0 ? '#2E7D32' : '#1565C0';
+
         ctx.save();
-        ctx.globalAlpha = TOUCH_CONTROL_OPACITY;
 
-        // 绘制外圈（底座） - 始终显示
-        ctx.strokeStyle = playerIndex === 0 ? '#4CAF50' : '#2196F3';
-        ctx.lineWidth = 3;
+        // 底座背景（半透明填充）
+        ctx.globalAlpha = TOUCH_CONTROL_OPACITY * 0.5;
+        ctx.fillStyle = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
         ctx.beginPath();
-        ctx.arc(joystick.centerX, joystick.centerY,
-                TOUCH_JOYSTICK_OUTER_RADIUS, 0, Math.PI * 2);
-        ctx.stroke();
+        ctx.arc(cx, cy, TOUCH_JOYSTICK_OUTER_RADIUS, 0, Math.PI * 2);
+        ctx.fill();
 
-        // 绘制旋转区标识圈
-        ctx.strokeStyle = 'rgba(255, 193, 7, 0.5)';
+        // 底座边框
+        ctx.globalAlpha = TOUCH_CONTROL_OPACITY;
+        ctx.strokeStyle = playerColor;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(joystick.centerX, joystick.centerY,
-                TOUCH_ROTATION_THRESHOLD, 0, Math.PI * 2);
+        ctx.arc(cx, cy, TOUCH_JOYSTICK_OUTER_RADIUS, 0, Math.PI * 2);
         ctx.stroke();
 
-        // 如果摇杆激活，绘制摇杆头和方向线
         if (joystick.active) {
-            // 根据距离选择颜色：旋转区=黄色，移动区=绿色
-            const joystickColor = joystick.distance < TOUCH_ROTATION_THRESHOLD ?
-                '#FFC107' : '#4CAF50';
-
-            // 绘制方向线
+            // 方向线
             if (joystick.distance > TOUCH_JOYSTICK_DEAD_ZONE) {
-                ctx.strokeStyle = joystickColor;
-                ctx.lineWidth = 3;
+                ctx.globalAlpha = TOUCH_CONTROL_OPACITY * 0.5;
+                ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.25)';
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
                 ctx.beginPath();
-                ctx.moveTo(joystick.centerX, joystick.centerY);
+                ctx.moveTo(cx, cy);
                 ctx.lineTo(joystick.currentX, joystick.currentY);
                 ctx.stroke();
             }
 
-            // 绘制摇杆头
-            ctx.fillStyle = joystickColor;
+            // 摇杆头：径向渐变模拟立体感
+            ctx.globalAlpha = TOUCH_CONTROL_OPACITY + 0.2;
+            const grad = ctx.createRadialGradient(
+                joystick.currentX - TOUCH_JOYSTICK_INNER_RADIUS * 0.3,
+                joystick.currentY - TOUCH_JOYSTICK_INNER_RADIUS * 0.3,
+                TOUCH_JOYSTICK_INNER_RADIUS * 0.1,
+                joystick.currentX, joystick.currentY,
+                TOUCH_JOYSTICK_INNER_RADIUS
+            );
+            grad.addColorStop(0, isDark ? '#FFFFFF' : playerColor);
+            grad.addColorStop(1, playerColorDark);
+            ctx.fillStyle = grad;
             ctx.beginPath();
             ctx.arc(joystick.currentX, joystick.currentY,
                     TOUCH_JOYSTICK_INNER_RADIUS, 0, Math.PI * 2);
             ctx.fill();
 
-            // 摇杆头边框
-            ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 2;
+            // 摇杆头细边框
+            ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+            ctx.lineWidth = 1.5;
             ctx.stroke();
+        } else {
+            // 未激活：中心小圆点
+            ctx.globalAlpha = TOUCH_CONTROL_OPACITY * 0.5;
+            ctx.fillStyle = playerColor;
+            ctx.beginPath();
+            ctx.arc(cx, cy, TOUCH_JOYSTICK_INNER_RADIUS * 0.45, 0, Math.PI * 2);
+            ctx.fill();
         }
 
-        // 玩家标识
-        ctx.globalAlpha = 0.6;
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 14px monospace';
+        // 玩家标识（底部，激活时淡出）
+        ctx.globalAlpha = joystick.active ? 0.15 : 0.35;
+        ctx.fillStyle = isDark ? '#FFFFFF' : '#000000';
+        ctx.font = 'bold 11px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`P${playerIndex + 1}`, joystick.centerX, joystick.centerY);
+        ctx.fillText(`P${playerIndex + 1}`, cx, cy + TOUCH_JOYSTICK_OUTER_RADIUS - 13);
 
         ctx.restore();
     }
@@ -203,48 +223,73 @@ class Renderer {
     drawTouchFireButton(fireButton, tank, playerIndex) {
         // 如果位置未初始化，不绘制
         if (fireButton.centerX === 0 && fireButton.centerY === 0) return;
-        
+
         const ctx = this.ctx;
+        const isDark = Theme.current === 'dark';
         const x = fireButton.centerX;
         const y = fireButton.centerY;
+        const r = TOUCH_FIRE_BUTTON_RADIUS;
+        const isActive = fireButton.active;
 
         ctx.save();
         ctx.globalAlpha = TOUCH_CONTROL_OPACITY;
 
-        // 按钮背景
-        ctx.fillStyle = fireButton.active ? '#FF4444' : '#FF6666';
+        // 按钮径向渐变（按压时颜色变深）
+        const grad = ctx.createRadialGradient(
+            x - r * 0.25, y - r * 0.25, r * 0.05,
+            x, y, r
+        );
+        if (isActive) {
+            grad.addColorStop(0, '#CC2222');
+            grad.addColorStop(1, '#7A0000');
+        } else {
+            grad.addColorStop(0, '#FF6B6B');
+            grad.addColorStop(1, '#C0392B');
+        }
+        ctx.fillStyle = grad;
         ctx.beginPath();
-        ctx.arc(x, y, TOUCH_FIRE_BUTTON_RADIUS, 0, Math.PI * 2);
+        ctx.arc(x, y, isActive ? r - 2 : r, 0, Math.PI * 2);
         ctx.fill();
 
-        // 按钮边框
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 3;
+        // 按钮细边框
+        ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+        ctx.lineWidth = 1.5;
         ctx.stroke();
 
-        // 冷却进度
+        // 冷却环形进度条（替代扇形遮罩）
         if (tank && tank.shootTimer > 0) {
             const progress = tank.shootTimer / SHOOT_COOLDOWN;
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.globalAlpha = TOUCH_CONTROL_OPACITY + 0.35;
+            ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.85)';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
             ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.arc(x, y, TOUCH_FIRE_BUTTON_RADIUS,
-                    -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
-            ctx.closePath();
-            ctx.fill();
+            ctx.arc(x, y, r - 5,
+                    -Math.PI / 2,
+                    -Math.PI / 2 + Math.PI * 2 * (1 - progress));
+            ctx.stroke();
         }
 
-        // 开火图标（十字准星）
-        ctx.globalAlpha = TOUCH_CONTROL_OPACITY + 0.2;
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 3;
+        // 准星：有间隔的十字线 + 中心圆点
+        ctx.globalAlpha = isActive
+            ? TOUCH_CONTROL_OPACITY + 0.05
+            : TOUCH_CONTROL_OPACITY + 0.3;
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.lineWidth = 2;
         ctx.lineCap = 'round';
+        const gap = 5;
+        const len = 9;
         ctx.beginPath();
-        ctx.moveTo(x - 15, y);
-        ctx.lineTo(x + 15, y);
-        ctx.moveTo(x, y - 15);
-        ctx.lineTo(x, y + 15);
+        ctx.moveTo(x,       y - gap);       ctx.lineTo(x,       y - gap - len);
+        ctx.moveTo(x,       y + gap);       ctx.lineTo(x,       y + gap + len);
+        ctx.moveTo(x - gap, y);             ctx.lineTo(x - gap - len, y);
+        ctx.moveTo(x + gap, y);             ctx.lineTo(x + gap + len, y);
         ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.beginPath();
+        ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
 
         ctx.restore();
     }
