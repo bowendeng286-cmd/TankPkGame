@@ -86,6 +86,12 @@ function startGame(cfg) {
     tanks = [];
     aiControllers = [];
     const total = cfg.humanCount + cfg.aiCount;
+    
+    // 更新触摸控制器布局
+    if (input.touchEnabled) {
+        input.updateLayout(cfg.humanCount);
+    }
+    
     for (let i = 0; i < total; i++) {
         const t = new Tank(0, 0, 0, Theme.colors.tanks[i % Theme.colors.tanks.length], i);
         t.isAI = i >= cfg.humanCount;
@@ -106,6 +112,41 @@ function readHumanInput() {
         const t = tanks[i];
         if (!t.alive) { t.input = { forward:false, backward:false, left:false, right:false, fire:false }; continue; }
 
+        // 触摸控制（支持双玩家）
+        if (input.touchEnabled && i < 2) {
+            const joystick = input.joysticks[i];
+            const fireButton = input.fireButtons[i];
+            
+            if (joystick.active) {
+                // 摇杆激活：处理移动和旋转
+                t._mouseTargetAngle = joystick.angle;
+                
+                if (joystick.distance < TOUCH_ROTATION_THRESHOLD) {
+                    // 旋转区：只旋转，不移动
+                    t.input.forward = false;
+                } else {
+                    // 移动区：旋转 + 移动
+                    t.input.forward = true;
+                }
+                
+                t.input.backward = false;
+                t.input.left = false;
+                t.input.right = false;
+                t.mouseControl = true;
+            } else {
+                // 摇杆未激活：坦克静止
+                t.input.forward = false;
+                t.input.backward = false;
+                t.input.left = false;
+                t.input.right = false;
+                t.mouseControl = false;
+            }
+            
+            // 开火按钮独立处理（无论摇杆是否激活）
+            t.input.fire = fireButton.active;
+            continue;
+        }
+
         // Player 3 鼠标控制
         if (t.mouseControl) {
             const dx = input.mouseX - t.x;
@@ -121,6 +162,7 @@ function readHumanInput() {
             continue;
         }
 
+        // 键盘控制
         const km = KEY_MAPS[i];
         t.input.forward  = input.isDown(km.up);
         t.input.backward = input.isDown(km.down);
@@ -310,7 +352,16 @@ function drawGame() {
     for (const b of bullets) renderer.drawBullet(b);
     for (const f of muzzleFlashes) renderer.drawMuzzleFlash(f.x, f.y);
     particles.draw(ctx);
-    renderer.drawScoreboard(tanks);
+    renderer.drawScoreboardTop(tanks);
+    
+    // 绘制触摸控制器（支持双玩家）
+    if (input.touchEnabled && gameState.current === STATE.PLAYING) {
+        for (let i = 0; i < Math.min(config.humanCount, 2); i++) {
+            renderer.drawTouchJoystick(input.joysticks[i], i);
+            renderer.drawTouchFireButton(input.fireButtons[i], tanks[i], i);
+        }
+    }
+    
     if (gameState.current === STATE.ROUND_PAUSE || gameState.current === STATE.GAME_OVER) {
         renderer.drawRoundMessage(gameState.roundMessage, gameState.current === STATE.GAME_OVER);
     }

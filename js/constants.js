@@ -47,6 +47,41 @@ const SPAWN_MIN_DIST = 3;      // cells apart
 const DEATH_PARTICLES = 20;
 const MOUSE_DEAD_ZONE = 30;    // px – 鼠标距坦克小于此距离时静止
 
+// ===== 触摸控制 =====
+// 摇杆尺寸
+const TOUCH_JOYSTICK_OUTER_RADIUS = 60;   // 摇杆底座半径
+const TOUCH_JOYSTICK_INNER_RADIUS = 25;   // 摇杆头半径
+const TOUCH_JOYSTICK_MAX_DISTANCE = 50;   // 摇杆最大偏移距离（增大）
+const TOUCH_JOYSTICK_DEAD_ZONE = 5;       // 摇杆死区（减小以提高灵敏度）
+
+// 单人模式位置（左下+右下）
+const TOUCH_JOYSTICK_P1_SINGLE_X = 100;
+const TOUCH_JOYSTICK_P1_SINGLE_Y = CANVAS_H - 100;
+const TOUCH_FIRE_P1_SINGLE_X = CANVAS_W - 100;
+const TOUCH_FIRE_P1_SINGLE_Y = CANVAS_H - 100;
+
+// 双人模式位置（四角布局）
+const TOUCH_JOYSTICK_P1_DUAL_X = 100;
+const TOUCH_JOYSTICK_P1_DUAL_Y = 100;          // P1摇杆：左上角
+const TOUCH_FIRE_P1_DUAL_X = 100;
+const TOUCH_FIRE_P1_DUAL_Y = CANVAS_H - 100;   // P1开火：左下角
+
+const TOUCH_JOYSTICK_P2_DUAL_X = CANVAS_W - 100;
+const TOUCH_JOYSTICK_P2_DUAL_Y = 100;          // P2摇杆：右上角
+const TOUCH_FIRE_P2_DUAL_X = CANVAS_W - 100;
+const TOUCH_FIRE_P2_DUAL_Y = CANVAS_H - 100;   // P2开火：右下角
+
+// 开火按钮
+const TOUCH_FIRE_BUTTON_RADIUS = 45;      // 开火按钮半径
+
+// 旋转/移动阈值（优化手感）
+const TOUCH_ROTATION_THRESHOLD = 38;      // 进一步增大旋转区，便于精确控制
+const TOUCH_MOVEMENT_THRESHOLD = 42;      // 进一步增大移动门槛，保持合理间隔
+const JOYSTICK_SENSITIVITY = 1.2;         // 灵敏度系数
+
+// 视觉
+const TOUCH_CONTROL_OPACITY = 0.4;        // 控制器透明度
+
 // ===== AI =====
 const AI_DIFFICULTY = {
     easy:   { reactionTime: 0.5, aimJitter: 15 * Math.PI / 180, dodgeRate: 0.50, bounceDepth: 1, shootCooldown: 1.5 },
