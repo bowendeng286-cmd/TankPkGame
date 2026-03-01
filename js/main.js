@@ -1,18 +1,24 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-canvas.width = CANVAS_W;
-canvas.height = CANVAS_H;
 
-// 自适应缩放
+// 全屏Canvas + 游戏区域居中
 function fitCanvas() {
+    // Canvas物理尺寸 = 窗口尺寸
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    // 计算游戏区域缩放和偏移（保持宽高比，居中显示）
     const scaleX = window.innerWidth / CANVAS_W;
     const scaleY = window.innerHeight / CANVAS_H;
-    const scale = Math.min(scaleX, scaleY);
-    canvas.style.width = (CANVAS_W * scale) + 'px';
-    canvas.style.height = (CANVAS_H * scale) + 'px';
+    VIEWPORT_SCALE = Math.min(scaleX, scaleY);
+    VIEWPORT_OFFSET_X = (window.innerWidth - CANVAS_W * VIEWPORT_SCALE) / 2;
+    VIEWPORT_OFFSET_Y = (window.innerHeight - CANVAS_H * VIEWPORT_SCALE) / 2;
+    
+    // 更新触摸控制器布局（如果已初始化）
+    if (typeof input !== 'undefined' && input && input.touchEnabled && config) {
+        input.updateLayout(config.humanCount);
+    }
 }
-window.addEventListener('resize', fitCanvas);
-fitCanvas();
 
 const input = new InputManager();
 input.bindCanvas(canvas);
@@ -20,6 +26,10 @@ const renderer = new Renderer(ctx);
 const particles = new ParticleSystem();
 const gameState = new GameState();
 const menu = new Menu();
+
+// 初始化完成后再设置resize监听和首次调用
+window.addEventListener('resize', fitCanvas);
+fitCanvas();
 
 var maze = null;
 var tanks = [];

@@ -132,16 +132,22 @@ class InputManager {
     _updateMousePos(e) {
         if (!this._canvas) return;
         const rect = this._canvas.getBoundingClientRect();
-        this.mouseX = (e.clientX - rect.left) * (this._canvas.width / rect.width);
-        this.mouseY = (e.clientY - rect.top) * (this._canvas.height / rect.height);
+        // 屏幕坐标 -> Canvas坐标 -> 游戏坐标
+        const canvasX = (e.clientX - rect.left) * (this._canvas.width / rect.width);
+        const canvasY = (e.clientY - rect.top) * (this._canvas.height / rect.height);
+        this.mouseX = (canvasX - VIEWPORT_OFFSET_X) / VIEWPORT_SCALE;
+        this.mouseY = (canvasY - VIEWPORT_OFFSET_Y) / VIEWPORT_SCALE;
     }
 
     // 触摸坐标转换为 canvas 逻辑坐标
     _touchToCanvasCoords(touch) {
         if (!this._canvas) return { x: 0, y: 0 };
         const rect = this._canvas.getBoundingClientRect();
-        const x = (touch.clientX - rect.left) * (this._canvas.width / rect.width);
-        const y = (touch.clientY - rect.top) * (this._canvas.height / rect.height);
+        // 屏幕坐标 -> Canvas坐标 -> 游戏坐标
+        const canvasX = (touch.clientX - rect.left) * (this._canvas.width / rect.width);
+        const canvasY = (touch.clientY - rect.top) * (this._canvas.height / rect.height);
+        const x = (canvasX - VIEWPORT_OFFSET_X) / VIEWPORT_SCALE;
+        const y = (canvasY - VIEWPORT_OFFSET_Y) / VIEWPORT_SCALE;
         return { x, y };
     }
 

@@ -9,6 +9,11 @@ const MAZE_OFFSET_X = CELL_SIZE / 2;
 const MAZE_OFFSET_Y = CELL_SIZE / 2;
 const WALL_REMOVE_RATIO = 0.42;
 
+// ===== 视口变换（全屏Canvas + 游戏区域居中） =====
+var VIEWPORT_SCALE = 1;        // 游戏区域缩放比例
+var VIEWPORT_OFFSET_X = 0;     // 游戏区域X偏移
+var VIEWPORT_OFFSET_Y = 0;     // 游戏区域Y偏移
+
 // ===== 坦克 =====
 const TANK_W = 28;
 const TANK_H = 22;

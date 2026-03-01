@@ -9,6 +9,16 @@ class Renderer {
     clear() {
         const ctx = this.ctx;
         ctx.save();
+        
+        // 1. 清空整个Canvas（全屏背景）
+        ctx.fillStyle = Theme.colors.bg;
+        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        
+        // 2. 应用视口变换（游戏区域居中）
+        ctx.translate(VIEWPORT_OFFSET_X, VIEWPORT_OFFSET_Y);
+        ctx.scale(VIEWPORT_SCALE, VIEWPORT_SCALE);
+        
+        // 3. 屏幕震动效果
         if (this.screenShake > 0) {
             this.shakeX = (Math.random() - 0.5) * this.screenShake * 8;
             this.shakeY = (Math.random() - 0.5) * this.screenShake * 8;
@@ -16,8 +26,10 @@ class Renderer {
             this.screenShake *= 0.9;
             if (this.screenShake < 0.01) this.screenShake = 0;
         }
-        ctx.fillStyle = Theme.colors.bg;
-        ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+        
+        // 4. 绘制游戏区域背景（可选，用于调试边界）
+        // ctx.fillStyle = Theme.colors.bg;
+        // ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
     }
 
     endFrame() {

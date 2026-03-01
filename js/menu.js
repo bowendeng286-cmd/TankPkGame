@@ -260,16 +260,24 @@ class Menu {
     }
 
     draw(ctx) {
+        // 应用视口变换（与游戏渲染一致）
+        ctx.save();
+        ctx.fillStyle = Theme.colors.bg;
+        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.translate(VIEWPORT_OFFSET_X, VIEWPORT_OFFSET_Y);
+        ctx.scale(VIEWPORT_SCALE, VIEWPORT_SCALE);
+        
         if (this.page === 'main') {
             this._drawMain(ctx);
         } else if (this.page === 'settings') {
             this._drawSettings(ctx);
         }
+        
+        ctx.restore();
     }
 
     _drawMain(ctx) {
-        ctx.fillStyle = Theme.colors.bg;
-        ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+        // 不再需要清空背景，已在draw()中处理
 
         ctx.textAlign = 'center';
         // Title
@@ -314,9 +322,7 @@ class Menu {
     }
 
     _drawSettings(ctx) {
-        ctx.fillStyle = Theme.colors.bg;
-        ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-
+        // 不再需要清空背景，已在draw()中处理
         ctx.textAlign = 'center';
         // Title
         ctx.font = 'bold 40px monospace';

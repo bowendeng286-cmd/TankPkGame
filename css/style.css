@@ -8,12 +8,15 @@ html, body {
     touch-action: manipulation;
 }
 body {
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    /* 移除flex布局，canvas现在是全屏的 */
 }
 #game {
     display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     image-rendering: pixelated;
     /* 禁用触摸选择和长按菜单 */
     -webkit-touch-callout: none;
