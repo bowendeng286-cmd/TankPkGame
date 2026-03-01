@@ -113,7 +113,7 @@ class Renderer {
         }
     }
 
-    drawRoundMessage(text, showHint) {
+    drawRoundMessage(text, showHint, isTouchDevice) {
         const ctx = this.ctx;
         ctx.save();
         ctx.font = 'bold 36px monospace';
@@ -125,7 +125,8 @@ class Renderer {
         if (showHint) {
             ctx.font = '16px monospace';
             ctx.fillStyle = '#CCC';
-            ctx.fillText(t('pressEnter'), CANVAS_W / 2, CANVAS_H / 2 + 32);
+            const hintText = isTouchDevice ? t('tapToContinue') : t('pressEnter');
+            ctx.fillText(hintText, CANVAS_W / 2, CANVAS_H / 2 + 32);
         }
         ctx.restore();
     }
@@ -145,8 +146,8 @@ class Renderer {
         const cy = joystick.centerY;
 
         // 玩家对应颜色
-        const playerColor = playerIndex === 0 ? '#4CAF50' : '#2196F3';
-        const playerColorDark = playerIndex === 0 ? '#2E7D32' : '#1565C0';
+        const playerColor = playerIndex === 0 ? '#E74C3C' : '#2196F3';
+        const playerColorDark = playerIndex === 0 ? '#C0392B' : '#1565C0';
 
         ctx.save();
 

@@ -43,6 +43,7 @@ const I18N_DICT = {
     draw:         { zh: '平局！', en: 'Draw!' },
     winsGame:     { zh: '赢得比赛！', en: 'WINS THE GAME!' },
     pressEnter:   { zh: '按 回车键 继续', en: 'Press Enter to continue' },
+    tapToContinue:{ zh: '请点击屏幕继续', en: 'Tap to continue' },
     ai:           { zh: 'AI', en: 'AI' },
 };
 

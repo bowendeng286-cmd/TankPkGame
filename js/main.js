@@ -363,7 +363,7 @@ function drawGame() {
     }
     
     if (gameState.current === STATE.ROUND_PAUSE || gameState.current === STATE.GAME_OVER) {
-        renderer.drawRoundMessage(gameState.roundMessage, gameState.current === STATE.GAME_OVER);
+        renderer.drawRoundMessage(gameState.roundMessage, gameState.current === STATE.GAME_OVER, input.isTouchDevice);
     }
     renderer.endFrame();
 }
@@ -408,8 +408,8 @@ function gameLoop(timestamp) {
         case STATE.GAME_OVER:
             gameState.pauseTimer += dt;
             drawGame();
-            // 按 Enter 返回菜单 (延迟0.5s防误触)
-            if (input.isDown('Enter') && gameState.pauseTimer > 0.5) {
+            // 按 Enter 或点击屏幕返回菜单 (延迟0.5s防误触)
+            if ((input.isDown('Enter') || input.consumeScreenTap()) && gameState.pauseTimer > 0.5) {
                 input.reset();
                 gameState.transitionTo(STATE.MENU);
                 menu.activate(input);

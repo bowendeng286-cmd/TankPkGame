@@ -12,6 +12,9 @@ class InputManager {
                              (navigator.maxTouchPoints > 0) ||
                              (navigator.msMaxTouchPoints > 0);
         this.touchEnabled = this.isTouchDevice;
+        
+        // 屏幕点击状态（用于游戏结束等场景）
+        this.screenTapped = false;
 
         // 双玩家摇杆状态（位置动态设置）
         this.joysticks = [
@@ -181,6 +184,9 @@ class InputManager {
         if (!this.touchEnabled) return;
         e.preventDefault();
 
+        // 标记屏幕被点击（用于游戏结束等场景）
+        this.screenTapped = true;
+
         for (let i = 0; i < e.changedTouches.length; i++) {
             const touch = e.changedTouches[i];
             const pos = this._touchToCanvasCoords(touch);
@@ -289,9 +295,19 @@ class InputManager {
 
     isDown(code) { return this.keys.has(code); }
     
+    // 检查并消费屏幕点击状态
+    consumeScreenTap() {
+        if (this.screenTapped) {
+            this.screenTapped = false;
+            return true;
+        }
+        return false;
+    }
+    
     reset() {
         this.keys.clear();
         this.mouseDown = false;
+        this.screenTapped = false;
         
         // 重置触摸状态
         for (let i = 0; i < 2; i++) {

@@ -130,7 +130,7 @@ class Menu {
             } else if (this.row === 4) {
                 // SETTINGS
                 this.page = 'settings';
-              ngsRow = 0;
+                this.settingsRow = 0;
                 this.openSettings = true;
             }
         }
