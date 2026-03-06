@@ -156,6 +156,11 @@ class Renderer {
         const isDark = Theme.current === 'dark';
         const cx = joystick.centerX;
         const cy = joystick.centerY;
+        
+        // 使用配置的半径
+        const outerRadius = joystick.outerRadius || TOUCH_JOYSTICK_OUTER_RADIUS;
+        const innerRadius = joystick.innerRadius || TOUCH_JOYSTICK_INNER_RADIUS;
+        const deadZone = joystick.deadZone || TOUCH_JOYSTICK_DEAD_ZONE;
 
         // 玩家对应颜色
         const playerColor = playerIndex === 0 ? '#E74C3C' : '#2196F3';
@@ -167,7 +172,7 @@ class Renderer {
         ctx.globalAlpha = TOUCH_CONTROL_OPACITY * 0.5;
         ctx.fillStyle = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
         ctx.beginPath();
-        ctx.arc(cx, cy, TOUCH_JOYSTICK_OUTER_RADIUS, 0, Math.PI * 2);
+        ctx.arc(cx, cy, outerRadius, 0, Math.PI * 2);
         ctx.fill();
 
         // 底座边框
@@ -175,12 +180,12 @@ class Renderer {
         ctx.strokeStyle = playerColor;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(cx, cy, TOUCH_JOYSTICK_OUTER_RADIUS, 0, Math.PI * 2);
+        ctx.arc(cx, cy, outerRadius, 0, Math.PI * 2);
         ctx.stroke();
 
         if (joystick.active) {
             // 方向线
-            if (joystick.distance > TOUCH_JOYSTICK_DEAD_ZONE) {
+            if (joystick.distance > deadZone) {
                 ctx.globalAlpha = TOUCH_CONTROL_OPACITY * 0.5;
                 ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.25)';
                 ctx.lineWidth = 2;
@@ -194,18 +199,18 @@ class Renderer {
             // 摇杆头：径向渐变模拟立体感
             ctx.globalAlpha = TOUCH_CONTROL_OPACITY + 0.2;
             const grad = ctx.createRadialGradient(
-                joystick.currentX - TOUCH_JOYSTICK_INNER_RADIUS * 0.3,
-                joystick.currentY - TOUCH_JOYSTICK_INNER_RADIUS * 0.3,
-                TOUCH_JOYSTICK_INNER_RADIUS * 0.1,
+                joystick.currentX - innerRadius * 0.3,
+                joystick.currentY - innerRadius * 0.3,
+                innerRadius * 0.1,
                 joystick.currentX, joystick.currentY,
-                TOUCH_JOYSTICK_INNER_RADIUS
+                innerRadius
             );
             grad.addColorStop(0, isDark ? '#FFFFFF' : playerColor);
             grad.addColorStop(1, playerColorDark);
             ctx.fillStyle = grad;
             ctx.beginPath();
             ctx.arc(joystick.currentX, joystick.currentY,
-                    TOUCH_JOYSTICK_INNER_RADIUS, 0, Math.PI * 2);
+                    innerRadius, 0, Math.PI * 2);
             ctx.fill();
 
             // 摇杆头细边框
@@ -217,7 +222,7 @@ class Renderer {
             ctx.globalAlpha = TOUCH_CONTROL_OPACITY * 0.5;
             ctx.fillStyle = playerColor;
             ctx.beginPath();
-            ctx.arc(cx, cy, TOUCH_JOYSTICK_INNER_RADIUS * 0.45, 0, Math.PI * 2);
+            ctx.arc(cx, cy, innerRadius * 0.45, 0, Math.PI * 2);
             ctx.fill();
         }
 
@@ -227,7 +232,7 @@ class Renderer {
         ctx.font = 'bold 11px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`P${playerIndex + 1}`, cx, cy + TOUCH_JOYSTICK_OUTER_RADIUS - 13);
+        ctx.fillText(`P${playerIndex + 1}`, cx, cy + outerRadius - 13);
 
         ctx.restore();
     }
@@ -241,7 +246,7 @@ class Renderer {
         const isDark = Theme.current === 'dark';
         const x = fireButton.centerX;
         const y = fireButton.centerY;
-        const r = TOUCH_FIRE_BUTTON_RADIUS;
+        const r = fireButton.radius || TOUCH_FIRE_BUTTON_RADIUS;
         const isActive = fireButton.active;
 
         ctx.save();

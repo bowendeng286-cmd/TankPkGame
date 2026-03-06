@@ -30,9 +30,10 @@ class Menu {
         this.done = false;
         this.result = null;
         this.page = 'main'; // 'main' or 'settings'
-        this.settingsRow = 0;   // 0=language, 1=theme, 2=back
+        this.settingsRow = 0;   // 0=language, 1=theme, 2=controls(触摸设备), 3=back
         this.settingsMaxRow = 2;
         this.openSettings = false; // 信号：通知 main.js 切换到 SETTINGS 状态
+        this.openControlsConfig = false; // 信号：通知 main.js 切换到 CONTROLS_CONFIG 状态
         this._onTouchEnd = null;  // 触摸事件处理器
     }
 
@@ -40,6 +41,7 @@ class Menu {
         this.done = false;
         this.result = null;
         this.openSettings = false;
+        this.openControlsConfig = false;
         this.page = 'main';
         this._input = input;
         this._prevKeys = new Set();
@@ -51,9 +53,19 @@ class Menu {
             this.modeIndex = 0;
         }
         
+        // 根据设备类型更新设置页面最大行数
+        this.settingsMaxRow = input.isTouchDevice ? 3 : 2;
+        
         // 绑定触摸事件
         if (input.isTouchDevice && input._canvas) {
             this._onTouchEnd = (e) => {
+                // 只在菜单或设置状态下处理触摸事件
+                if (typeof gameState !== 'undefined' &&
+                    gameState.current !== STATE.MENU &&
+                    gameState.current !== STATE.SETTINGS) {
+                    return;
+                }
+                
                 e.preventDefault();
                 if (e.changedTouches.length > 0) {
                     const touch = e.changedTouches[0];
@@ -166,8 +178,13 @@ class Menu {
             if (this.settingsRow === 1) Theme.toggle();
         }
         if (confirmPressed) {
+            // 控制器设置（仅触摸设备）
+            if (this._input.isTouchDevice && this.settingsRow === 2) {
+                this.openControlsConfig = true;
+                return;
+            }
+            // BACK
             if (this.settingsRow === this.settingsMaxRow) {
-                // BACK
                 this.page = 'main';
                 this.openSettings = false;
             }
@@ -219,6 +236,7 @@ class Menu {
                         // SETTINGS
                         this.page = 'settings';
                         this.settingsRow = 0;
+                        this.openSettings = true;
                     }
                 }
                 break;
@@ -231,8 +249,9 @@ class Menu {
         const gap = 60;
         const rowHeight = 40;
         
-        // 检测点击的设置行
-        for (let i = 0; i < 3; i++) {
+        // 检测点击的设置行（根据设备类型决定行数）
+        const maxRows = this._input.isTouchDevice ? 4 : 3;
+        for (let i = 0; i < maxRows; i++) {
             const itemY = startY + i * gap;
             if (y >= itemY - rowHeight/2 && y <= itemY + rowHeight/2) {
                 this.settingsRow = i;
@@ -249,8 +268,12 @@ class Menu {
                         if (i === 1) Theme.toggle();
                     }
                 }
+                // 控制器设置（仅触摸设备）
+                else if (this._input.isTouchDevice && i === 2) {
+                    this.openControlsConfig = true;
+                }
                 // 返回按钮
-                else if (i === 2) {
+                else if (i === this.settingsMaxRow) {
                     this.page = 'main';
                     this.openSettings = false;
                 }
@@ -330,12 +353,18 @@ class Menu {
         ctx.fillText(t('settingsTitle'), CANVAS_W / 2, 100);
 
         const startY = 200;
-        const gap = 70;
+        const gap = 60;
         const items = [
             { label: t('language'), value: t('langName') },
             { label: t('theme'), value: t(Theme.current === 'light' ? 'themeLight' : 'themeDark') },
-            { label: t('back'), value: '' },
         ];
+        
+        // 仅触摸设备显示控制器设置
+        if (this._input.isTouchDevice) {
+            items.push({ label: t('controlsConfig'), value: '' });
+        }
+        
+        items.push({ label: t('back'), value: '' });
 
         for (let i = 0; i < items.length; i++) {
             const y = startY + i * gap;

@@ -26,6 +26,7 @@ const renderer = new Renderer(ctx);
 const particles = new ParticleSystem();
 const gameState = new GameState();
 const menu = new Menu();
+const controlsConfigUI = new ControlsConfigUI();
 
 // 初始化完成后再设置resize监听和首次调用
 window.addEventListener('resize', fitCanvas);
@@ -90,6 +91,7 @@ function _generateSpawns(count) {
 
 // ===== 开始游戏 =====
 function startGame(cfg) {
+    menu.deactivate();  // 移除菜单的触摸事件监听器
     input.reset();
     config = cfg;
     gameState.winScore = cfg.winScore;
@@ -131,11 +133,12 @@ function readHumanInput() {
                 // 摇杆激活：处理移动和旋转
                 t._mouseTargetAngle = joystick.angle;
                 
-                if (joystick.distance < TOUCH_ROTATION_THRESHOLD) {
-                    // 旋转区：只旋转，不移动
+                // 使用摇杆的死区参数：死区内只旋转不移动
+                if (joystick.distance <= joystick.deadZone) {
+                    // 死区内：只旋转，不移动
                     t.input.forward = false;
                 } else {
-                    // 移动区：旋转 + 移动
+                    // 死区外：旋转 + 移动
                     t.input.forward = true;
                 }
                 
@@ -399,8 +402,25 @@ function gameLoop(timestamp) {
         case STATE.SETTINGS:
             menu.update();
             menu.draw(ctx);
+            if (menu.openControlsConfig) {
+                gameState.transitionTo(STATE.CONTROLS_CONFIG);
+                controlsConfigUI.activate(input);
+                menu.openControlsConfig = false;
+            }
             if (menu.page === 'main') {
                 gameState.transitionTo(STATE.MENU);
+            }
+            break;
+        case STATE.CONTROLS_CONFIG:
+            controlsConfigUI.update(dt);
+            controlsConfigUI.draw(ctx);
+            if (controlsConfigUI.done) {
+                controlsConfigUI.deactivate();
+                // 如果保存了配置，重新加载到 input
+                if (controlsConfigUI.saved && config) {
+                    input.updateLayout(config.humanCount);
+                }
+                gameState.transitionTo(STATE.SETTINGS);
             }
             break;
         case STATE.PLAYING:

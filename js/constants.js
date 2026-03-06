@@ -53,11 +53,19 @@ const DEATH_PARTICLES = 20;
 const MOUSE_DEAD_ZONE = 30;    // px – 鼠标距坦克小于此距离时静止
 
 // ===== 触摸控制 =====
-// 摇杆尺寸
+// 摇杆尺寸（默认值，可通过配置修改）
 const TOUCH_JOYSTICK_OUTER_RADIUS = 60;   // 摇杆底座半径
 const TOUCH_JOYSTICK_INNER_RADIUS = 25;   // 摇杆头半径
 const TOUCH_JOYSTICK_MAX_DISTANCE = 50;   // 摇杆最大偏移距离（增大）
 const TOUCH_JOYSTICK_DEAD_ZONE = 5;       // 摇杆死区（减小以提高灵敏度）
+
+// 控制器配置范围
+const JOYSTICK_OUTER_RADIUS_MIN = 40;
+const JOYSTICK_OUTER_RADIUS_MAX = 80;
+const JOYSTICK_DEAD_ZONE_MIN = 0;
+const JOYSTICK_DEAD_ZONE_MAX = 20;
+const FIRE_BUTTON_RADIUS_MIN = 30;
+const FIRE_BUTTON_RADIUS_MAX = 60;
 
 // 单人模式位置（左下+右下）
 const TOUCH_JOYSTICK_P1_SINGLE_X = 100;

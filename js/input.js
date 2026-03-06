@@ -7,11 +7,39 @@ class InputManager {
         this.mouseDown = false;
         this._canvas = null;
 
-        // 触摸控制状态
-        this.isTouchDevice = ('ontouchstart' in window) ||
-                             (navigator.maxTouchPoints > 0) ||
-                             (navigator.msMaxTouchPoints > 0);
+        // 触摸控制状态 - 改进的设备检测逻辑
+        const hasOntouchstart = 'ontouchstart' in window;
+        const hasMaxTouchPoints = navigator.maxTouchPoints > 0;
+        
+        // 用户代理检测（最可靠的方法）
+        const ua = navigator.userAgent.toLowerCase();
+        const isMobileUA = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet/i.test(ua);
+        
+        // 屏幕尺寸检测（移动设备通常宽度较小）
+        const isMobileScreen = window.innerWidth <= 768;
+        
+        // 检测是否为桌面浏览器（即使支持触摸）
+        const isDesktopUA = /windows nt|macintosh|linux x86_64/i.test(ua) && !isMobileUA;
+        
+        // 设备检测逻辑：
+        // 1. User Agent 明确表明是移动设备 → 触摸设备
+        // 2. User Agent 明确表明是桌面系统 → 非触摸设备（即使有触摸API）
+        // 3. 小屏幕 + 有触摸支持 → 触摸设备
+        // 4. 默认 → 非触摸设备
+        if (isMobileUA) {
+            this.isTouchDevice = true;
+        } else if (isDesktopUA) {
+            this.isTouchDevice = false;
+        } else if (isMobileScreen && (hasOntouchstart || hasMaxTouchPoints)) {
+            this.isTouchDevice = true;
+        } else {
+            this.isTouchDevice = false;
+        }
+        
         this.touchEnabled = this.isTouchDevice;
+        
+        // 输出检测结果（便于调试）
+        console.log('[INPUT] Device detection - isTouchDevice:', this.isTouchDevice, '| UA:', isMobileUA ? 'Mobile' : (isDesktopUA ? 'Desktop' : 'Unknown'));
         
         // 屏幕点击状态（用于游戏结束等场景）
         this.screenTapped = false;
@@ -27,7 +55,12 @@ class InputManager {
                 currentY: 0,
                 angle: 0,
                 distance: 0,
-                strength: 0
+                strength: 0,
+                // 可配置参数
+                outerRadius: TOUCH_JOYSTICK_OUTER_RADIUS,
+                innerRadius: TOUCH_JOYSTICK_INNER_RADIUS,
+                maxDistance: TOUCH_JOYSTICK_MAX_DISTANCE,
+                deadZone: TOUCH_JOYSTICK_DEAD_ZONE
             },
             {
                 active: false,
@@ -38,14 +71,19 @@ class InputManager {
                 currentY: 0,
                 angle: 0,
                 distance: 0,
-                strength: 0
+                strength: 0,
+                // 可配置参数
+                outerRadius: TOUCH_JOYSTICK_OUTER_RADIUS,
+                innerRadius: TOUCH_JOYSTICK_INNER_RADIUS,
+                maxDistance: TOUCH_JOYSTICK_MAX_DISTANCE,
+                deadZone: TOUCH_JOYSTICK_DEAD_ZONE
             }
         ];
 
         // 双玩家开火按钮状态
         this.fireButtons = [
-            { active: false, touchId: null, centerX: TOUCH_FIRE_P1_SINGLE_X, centerY: TOUCH_FIRE_P1_SINGLE_Y },
-            { active: false, touchId: null, centerX: TOUCH_FIRE_P2_DUAL_X, centerY: TOUCH_FIRE_P2_DUAL_Y }
+            { active: false, touchId: null, centerX: TOUCH_FIRE_P1_SINGLE_X, centerY: TOUCH_FIRE_P1_SINGLE_Y, radius: TOUCH_FIRE_BUTTON_RADIUS },
+            { active: false, touchId: null, centerX: TOUCH_FIRE_P2_DUAL_X, centerY: TOUCH_FIRE_P2_DUAL_Y, radius: TOUCH_FIRE_BUTTON_RADIUS }
         ];
 
         // 当前玩家数量（用于动态布局）
@@ -98,34 +136,41 @@ class InputManager {
     updateLayout(playerCount) {
         this.playerCount = playerCount;
         
-        if (playerCount === 1) {
-            // 单人模式：左下+右下
-            this.joysticks[0].centerX = TOUCH_JOYSTICK_P1_SINGLE_X;
-            this.joysticks[0].centerY = TOUCH_JOYSTICK_P1_SINGLE_Y;
-            this.joysticks[0].currentX = TOUCH_JOYSTICK_P1_SINGLE_X;
-            this.joysticks[0].currentY = TOUCH_JOYSTICK_P1_SINGLE_Y;
-            
-            this.fireButtons[0].centerX = TOUCH_FIRE_P1_SINGLE_X;
-            this.fireButtons[0].centerY = TOUCH_FIRE_P1_SINGLE_Y;
+        // 从配置加载
+        if (typeof ControlsSettings !== 'undefined') {
+            const config = ControlsSettings.load();
+            ControlsSettings.applyToInput(this, config, playerCount);
         } else {
-            // 双人模式：四角布局
-            // P1: 左上摇杆 + 左下开火
-            this.joysticks[0].centerX = TOUCH_JOYSTICK_P1_DUAL_X;
-            this.joysticks[0].centerY = TOUCH_JOYSTICK_P1_DUAL_Y;
-            this.joysticks[0].currentX = TOUCH_JOYSTICK_P1_DUAL_X;
-            this.joysticks[0].currentY = TOUCH_JOYSTICK_P1_DUAL_Y;
-            
-            this.fireButtons[0].centerX = TOUCH_FIRE_P1_DUAL_X;
-            this.fireButtons[0].centerY = TOUCH_FIRE_P1_DUAL_Y;
-            
-            // P2: 右上摇杆 + 右下开火
-            this.joysticks[1].centerX = TOUCH_JOYSTICK_P2_DUAL_X;
-            this.joysticks[1].centerY = TOUCH_JOYSTICK_P2_DUAL_Y;
-            this.joysticks[1].currentX = TOUCH_JOYSTICK_P2_DUAL_X;
-            this.joysticks[1].currentY = TOUCH_JOYSTICK_P2_DUAL_Y;
-            
-            this.fireButtons[1].centerX = TOUCH_FIRE_P2_DUAL_X;
-            this.fireButtons[1].centerY = TOUCH_FIRE_P2_DUAL_Y;
+            // 降级：使用默认值
+            if (playerCount === 1) {
+                // 单人模式：左下+右下
+                this.joysticks[0].centerX = TOUCH_JOYSTICK_P1_SINGLE_X;
+                this.joysticks[0].centerY = TOUCH_JOYSTICK_P1_SINGLE_Y;
+                this.joysticks[0].currentX = TOUCH_JOYSTICK_P1_SINGLE_X;
+                this.joysticks[0].currentY = TOUCH_JOYSTICK_P1_SINGLE_Y;
+                
+                this.fireButtons[0].centerX = TOUCH_FIRE_P1_SINGLE_X;
+                this.fireButtons[0].centerY = TOUCH_FIRE_P1_SINGLE_Y;
+            } else {
+                // 双人模式：四角布局
+                // P1: 左上摇杆 + 左下开火
+                this.joysticks[0].centerX = TOUCH_JOYSTICK_P1_DUAL_X;
+                this.joysticks[0].centerY = TOUCH_JOYSTICK_P1_DUAL_Y;
+                this.joysticks[0].currentX = TOUCH_JOYSTICK_P1_DUAL_X;
+                this.joysticks[0].currentY = TOUCH_JOYSTICK_P1_DUAL_Y;
+                
+                this.fireButtons[0].centerX = TOUCH_FIRE_P1_DUAL_X;
+                this.fireButtons[0].centerY = TOUCH_FIRE_P1_DUAL_Y;
+                
+                // P2: 右上摇杆 + 右下开火
+                this.joysticks[1].centerX = TOUCH_JOYSTICK_P2_DUAL_X;
+                this.joysticks[1].centerY = TOUCH_JOYSTICK_P2_DUAL_Y;
+                this.joysticks[1].currentX = TOUCH_JOYSTICK_P2_DUAL_X;
+                this.joysticks[1].currentY = TOUCH_JOYSTICK_P2_DUAL_Y;
+                
+                this.fireButtons[1].centerX = TOUCH_FIRE_P2_DUAL_X;
+                this.fireButtons[1].centerY = TOUCH_FIRE_P2_DUAL_Y;
+            }
         }
     }
 
@@ -161,22 +206,22 @@ class InputManager {
     // 判断触摸点属于哪个玩家的控制器（游戏界面）
     _getTouchController(x, y) {
         // 检查P1摇杆区域
-        if (this._distance(x, y, this.joysticks[0].centerX, this.joysticks[0].centerY) < TOUCH_JOYSTICK_OUTER_RADIUS + 30) {
+        if (this._distance(x, y, this.joysticks[0].centerX, this.joysticks[0].centerY) < this.joysticks[0].outerRadius + 30) {
             return { player: 0, type: 'joystick' };
         }
         // 检查P1开火按钮区域
-        if (this._distance(x, y, this.fireButtons[0].centerX, this.fireButtons[0].centerY) < TOUCH_FIRE_BUTTON_RADIUS + 30) {
+        if (this._distance(x, y, this.fireButtons[0].centerX, this.fireButtons[0].centerY) < this.fireButtons[0].radius + 30) {
             return { player: 0, type: 'fire' };
         }
         
         // 双人模式才检查P2
         if (this.playerCount >= 2) {
             // 检查P2摇杆区域
-            if (this._distance(x, y, this.joysticks[1].centerX, this.joysticks[1].centerY) < TOUCH_JOYSTICK_OUTER_RADIUS + 30) {
+            if (this._distance(x, y, this.joysticks[1].centerX, this.joysticks[1].centerY) < this.joysticks[1].outerRadius + 30) {
                 return { player: 1, type: 'joystick' };
             }
             // 检查P2开火按钮区域
-            if (this._distance(x, y, this.fireButtons[1].centerX, this.fireButtons[1].centerY) < TOUCH_FIRE_BUTTON_RADIUS + 30) {
+            if (this._distance(x, y, this.fireButtons[1].centerX, this.fireButtons[1].centerY) < this.fireButtons[1].radius + 30) {
                 return { player: 1, type: 'fire' };
             }
         }
@@ -278,25 +323,26 @@ class InputManager {
         const dy = currentY - joystick.centerY;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
-        // 死区处理
-        if (distance < TOUCH_JOYSTICK_DEAD_ZONE) {
+        // 始终更新角度（用于旋转）
+        joystick.angle = Math.atan2(dy, dx);
+
+        // 死区处理：死区内只旋转不移动
+        if (distance < joystick.deadZone) {
             joystick.currentX = joystick.centerX;
             joystick.currentY = joystick.centerY;
             joystick.distance = 0;
             joystick.strength = 0;
-            joystick.angle = 0;
             return;
         }
 
-        // 限制最大距离
-        const clampedDistance = Math.min(distance, TOUCH_JOYSTICK_MAX_DISTANCE);
+        // 限制最大距离（使用配置的最大距离）
+        const clampedDistance = Math.min(distance, joystick.maxDistance);
         const ratio = clampedDistance / distance;
 
         joystick.currentX = joystick.centerX + dx * ratio;
         joystick.currentY = joystick.centerY + dy * ratio;
-        joystick.angle = Math.atan2(dy, dx);
         joystick.distance = clampedDistance;
-        joystick.strength = clampedDistance / TOUCH_JOYSTICK_MAX_DISTANCE;
+        joystick.strength = clampedDistance / joystick.maxDistance;
     }
 
     isDown(code) { return this.keys.has(code); }

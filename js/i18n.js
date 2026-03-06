@@ -36,7 +36,24 @@ const I18N_DICT = {
     theme:        { zh: '主题', en: 'Theme' },
     themeLight:   { zh: '亮色模式', en: 'Light Mode' },
     themeDark:    { zh: '深色模式', en: 'Dark Mode' },
+    controlsConfig: { zh: '控制器设置', en: 'Controls Config' },
     back:         { zh: '[ 返  回 ]', en: '[ BACK ]' },
+
+    // 控制器配置
+    controlsTitle: { zh: '控制器设置', en: 'CONTROLS CONFIG' },
+    singleMode:   { zh: '单人模式', en: 'Single Player' },
+    dualMode:     { zh: '双人模式', en: 'Dual Player' },
+    player1:      { zh: '玩家1', en: 'Player 1' },
+    player2:      { zh: '玩家2', en: 'Player 2' },
+    dragHint:     { zh: '长按拖动调整位置', en: 'Long press to drag' },
+    tapHint:      { zh: '点击显示参数设置', en: 'Tap to adjust params' },
+    joystickSize: { zh: '摇杆大小', en: 'Joystick Size' },
+    deadZone:     { zh: '死区范围', en: 'Dead Zone' },
+    buttonSize:   { zh: '按钮大小', en: 'Button Size' },
+    resetDefault: { zh: '[ 重置默认 ]', en: '[ RESET ]' },
+    save:         { zh: '[ 保  存 ]', en: '[ SAVE ]' },
+    cancel:       { zh: '[ 取  消 ]', en: '[ CANCEL ]' },
+    confirm:      { zh: '[ 确  定 ]', en: '[ CONFIRM ]' },
 
     // 游戏内消息
     scores:       { zh: '得分！', en: 'scores!' },
