@@ -326,23 +326,24 @@ class InputManager {
         // 始终更新角度（用于旋转）
         joystick.angle = Math.atan2(dy, dx);
 
-        // 死区处理：死区内只旋转不移动
-        if (distance < joystick.deadZone) {
-            joystick.currentX = joystick.centerX;
-            joystick.currentY = joystick.centerY;
-            joystick.distance = 0;
-            joystick.strength = 0;
-            return;
-        }
-
-        // 限制最大距离（使用配置的最大距离）
+        // 限制最大距离（先计算，死区内外都需要）
         const clampedDistance = Math.min(distance, joystick.maxDistance);
         const ratio = clampedDistance / distance;
 
+        // 转子位置始终跟随手指（去除吸附）
         joystick.currentX = joystick.centerX + dx * ratio;
         joystick.currentY = joystick.centerY + dy * ratio;
-        joystick.distance = clampedDistance;
-        joystick.strength = clampedDistance / joystick.maxDistance;
+
+        // 死区处理：仅影响逻辑数值，不影响视觉位置
+        if (distance < joystick.deadZone) {
+            // 死区内：只旋转不移动（distance/strength 归零）
+            joystick.distance = 0;
+            joystick.strength = 0;
+        } else {
+            // 死区外：正常移动
+            joystick.distance = clampedDistance;
+            joystick.strength = clampedDistance / joystick.maxDistance;
+        }
     }
 
     isDown(code) { return this.keys.has(code); }

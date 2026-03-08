@@ -41,19 +41,24 @@ const I18N_DICT = {
 
     // 控制器配置
     controlsTitle: { zh: '控制器设置', en: 'CONTROLS CONFIG' },
+    controlsSubtitle: { zh: '自定义触摸控制器的位置和大小', en: 'Customize touch controls position and size' },
     singleMode:   { zh: '单人模式', en: 'Single Player' },
     dualMode:     { zh: '双人模式', en: 'Dual Player' },
     player1:      { zh: '玩家1', en: 'Player 1' },
     player2:      { zh: '玩家2', en: 'Player 2' },
+    previewArea:  { zh: '预览区域', en: 'Preview Area' },
     dragHint:     { zh: '长按拖动调整位置', en: 'Long press to drag' },
     tapHint:      { zh: '点击显示参数设置', en: 'Tap to adjust params' },
+    tapToOpenPanel: { zh: '点击控制器打开参数面板', en: 'Tap controller to open panel' },
+    longPressToDrag: { zh: '长按300ms后拖动移动', en: 'Long press 300ms to drag' },
+    dragToMove:   { zh: '拖动调整控制器位置', en: 'Drag to adjust position' },
     joystickSize: { zh: '摇杆大小', en: 'Joystick Size' },
     deadZone:     { zh: '死区范围', en: 'Dead Zone' },
     buttonSize:   { zh: '按钮大小', en: 'Button Size' },
-    resetDefault: { zh: '[ 重置默认 ]', en: '[ RESET ]' },
-    save:         { zh: '[ 保  存 ]', en: '[ SAVE ]' },
-    cancel:       { zh: '[ 取  消 ]', en: '[ CANCEL ]' },
-    confirm:      { zh: '[ 确  定 ]', en: '[ CONFIRM ]' },
+    resetDefault: { zh: '重置', en: 'RESET' },
+    save:         { zh: '保存', en: 'SAVE' },
+    cancel:       { zh: '取消', en: 'CANCEL' },
+    confirm:      { zh: '确定', en: 'CONFIRM' },
 
     // 游戏内消息
     scores:       { zh: '得分！', en: 'scores!' },

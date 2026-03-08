@@ -352,27 +352,60 @@ class ControlsConfigUI {
         
         // 标题
         ctx.textAlign = 'center';
-        ctx.font = 'bold 36px monospace';
+        ctx.font = 'bold 40px monospace';
         ctx.fillStyle = Theme.colors.text.primary;
-        ctx.fillText(t('controlsTitle'), CANVAS_W / 2, 50);
+        ctx.fillText(t('controlsTitle'), CANVAS_W / 2, 40);
+        
+        // 副标题
+        ctx.font = '14px monospace';
+        ctx.fillStyle = Theme.colors.text.hint;
+        ctx.fillText(t('controlsSubtitle'), CANVAS_W / 2, 70);
+        
+        // 装饰线
+        const lineY = 88;
+        const lineW = 200;
+        const grad = ctx.createLinearGradient(
+            CANVAS_W/2 - lineW/2, lineY,
+            CANVAS_W/2 + lineW/2, lineY
+        );
+        grad.addColorStop(0, 'transparent');
+        grad.addColorStop(0.5, Theme.colors.tanks[0]);
+        grad.addColorStop(1, 'transparent');
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(CANVAS_W/2 - lineW/2, lineY);
+        ctx.lineTo(CANVAS_W/2 + lineW/2, lineY);
+        ctx.stroke();
         
         // 模式切换按钮
-        this._drawButton(ctx, this.buttons.singleMode, t('singleMode'), this.mode === 'single');
-        this._drawButton(ctx, this.buttons.dualMode, t('dualMode'), this.mode === 'dual');
+        this._drawModeButton(ctx, this.buttons.singleMode, t('singleMode'), this.mode === 'single');
+        this._drawModeButton(ctx, this.buttons.dualMode, t('dualMode'), this.mode === 'dual');
         
         // 绘制控制器预览区域
         this._drawControllers(ctx);
         
-        // 提示文字
-        ctx.font = '14px monospace';
-        ctx.fillStyle = Theme.colors.text.hint;
-        ctx.fillText(t('dragHint'), CANVAS_W / 2, CANVAS_H - 100);
-        ctx.fillText(t('tapHint'), CANVAS_W / 2, CANVAS_H - 80);
+        // 操作说明
+        const instructions = [
+            { icon: '👆', text: t('tapToOpenPanel') },
+            { icon: '⏱', text: t('longPressToDrag') },
+            { icon: '✋', text: t('dragToMove') }
+        ];
+        
+        ctx.font = '13px monospace';
+        ctx.fillStyle = Theme.colors.text.secondary;
+        ctx.textAlign = 'left';
+        
+        let instrY = CANVAS_H - 115;
+        instructions.forEach((instr, i) => {
+            ctx.fillText(`${i+1}. ${instr.icon} ${instr.text}`, 60, instrY);
+            instrY += 22;
+        });
         
         // 底部按钮
-        this._drawButton(ctx, this.buttons.reset, t('resetDefault'), false);
-        this._drawButton(ctx, this.buttons.save, t('save'), false);
-        this._drawButton(ctx, this.buttons.back, t('back'), false);
+        this._drawActionButton(ctx, this.buttons.reset, t('resetDefault'), 'reset');
+        this._drawActionButton(ctx, this.buttons.save, t('save'), 'save');
+        this._drawActionButton(ctx, this.buttons.back, t('back'), 'back');
         
         // 参数面板
         if (this.showPanel && this.panelTarget) {
@@ -382,19 +415,12 @@ class ControlsConfigUI {
         ctx.restore();
     }
 
-    _drawButton(ctx, btn, text, selected) {
-        const radius = 8; // 圆角半径
+    _drawModeButton(ctx, btn, text, selected) {
+        const radius = 8;
         
         ctx.save();
         
-        // 阴影效果
-        if (selected) {
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-            ctx.shadowBlur = 8;
-            ctx.shadowOffsetY = 2;
-        }
-        
-        // 绘制圆角矩形背景
+        // 绘制圆角矩形路径
         ctx.beginPath();
         ctx.moveTo(btn.x + radius, btn.y);
         ctx.lineTo(btn.x + btn.w - radius, btn.y);
@@ -408,14 +434,24 @@ class ControlsConfigUI {
         ctx.closePath();
         
         if (selected) {
-            // 选中状态：渐变填充
+            // 外发光
+            ctx.shadowColor = Theme.colors.tanks[0];
+            ctx.shadowBlur = 15;
+            
+            // 渐变填充
             const grad = ctx.createLinearGradient(btn.x, btn.y, btn.x, btn.y + btn.h);
             grad.addColorStop(0, Theme.colors.tanks[0]);
             grad.addColorStop(1, Theme.colors.tanks[1] || Theme.colors.tanks[0]);
             ctx.fillStyle = grad;
             ctx.fill();
+            
+            // 高亮边框
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 2;
+            ctx.stroke();
         } else {
-            // 未选中状态：半透明填充
+            // 未选中状态
             ctx.fillStyle = Theme.current === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
             ctx.fill();
             ctx.strokeStyle = Theme.colors.text.hint;
@@ -426,6 +462,96 @@ class ControlsConfigUI {
         ctx.restore();
         
         // 文字
+        ctx.fillStyle = selected ? '#FFFFFF' : Theme.colors.text.secondary;
+        ctx.font = selected ? 'bold 16px monospace' : '14px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, btn.x + btn.w / 2, btn.y + btn.h / 2);
+    }
+
+    _drawActionButton(ctx, btn, text, type) {
+        const radius = 8;
+        const colors = {
+            reset: { normal: '#FF9800', hover: '#FB8C00', icon: '↻' },
+            save: { normal: '#4CAF50', hover: '#43A047', icon: '✓' },
+            back: { normal: '#757575', hover: '#616161', icon: '←' }
+        };
+        
+        const color = colors[type] || colors.back;
+        
+        ctx.save();
+        
+        // 阴影效果
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetY = 2;
+        
+        // 绘制圆角矩形
+        ctx.beginPath();
+        ctx.moveTo(btn.x + radius, btn.y);
+        ctx.lineTo(btn.x + btn.w - radius, btn.y);
+        ctx.quadraticCurveTo(btn.x + btn.w, btn.y, btn.x + btn.w, btn.y + radius);
+        ctx.lineTo(btn.x + btn.w, btn.y + btn.h - radius);
+        ctx.quadraticCurveTo(btn.x + btn.w, btn.y + btn.h, btn.x + btn.w - radius, btn.y + btn.h);
+        ctx.lineTo(btn.x + radius, btn.y + btn.h);
+        ctx.quadraticCurveTo(btn.x, btn.y + btn.h, btn.x, btn.y + btn.h - radius);
+        ctx.lineTo(btn.x, btn.y + radius);
+        ctx.quadraticCurveTo(btn.x, btn.y, btn.x + radius, btn.y);
+        ctx.closePath();
+        
+        // 按钮背景
+        ctx.fillStyle = color.normal;
+        ctx.fill();
+        
+        ctx.restore();
+        
+        // 图标和文字
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${color.icon} ${text}`, btn.x + btn.w / 2, btn.y + btn.h / 2);
+    }
+
+    _drawButton(ctx, btn, text, selected) {
+        const radius = 8;
+        
+        ctx.save();
+        
+        if (selected) {
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+            ctx.shadowBlur = 8;
+            ctx.shadowOffsetY = 2;
+        }
+        
+        ctx.beginPath();
+        ctx.moveTo(btn.x + radius, btn.y);
+        ctx.lineTo(btn.x + btn.w - radius, btn.y);
+        ctx.quadraticCurveTo(btn.x + btn.w, btn.y, btn.x + btn.w, btn.y + radius);
+        ctx.lineTo(btn.x + btn.w, btn.y + btn.h - radius);
+        ctx.quadraticCurveTo(btn.x + btn.w, btn.y + btn.h, btn.x + btn.w - radius, btn.y + btn.h);
+        ctx.lineTo(btn.x + radius, btn.y + btn.h);
+        ctx.quadraticCurveTo(btn.x, btn.y + btn.h, btn.x, btn.y + btn.h - radius);
+        ctx.lineTo(btn.x, btn.y + radius);
+        ctx.quadraticCurveTo(btn.x, btn.y, btn.x + radius, btn.y);
+        ctx.closePath();
+        
+        if (selected) {
+            const grad = ctx.createLinearGradient(btn.x, btn.y, btn.x, btn.y + btn.h);
+            grad.addColorStop(0, Theme.colors.tanks[0]);
+            grad.addColorStop(1, Theme.colors.tanks[1] || Theme.colors.tanks[0]);
+            ctx.fillStyle = grad;
+            ctx.fill();
+        } else {
+            ctx.fillStyle = Theme.current === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+            ctx.fill();
+            ctx.strokeStyle = Theme.colors.text.hint;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+        
+        ctx.restore();
+        
         ctx.fillStyle = selected ? '#FFFFFF' : Theme.colors.text.secondary;
         ctx.font = selected ? 'bold 16px monospace' : '14px monospace';
         ctx.textAlign = 'center';
@@ -457,32 +583,37 @@ class ControlsConfigUI {
         ctx.fillStyle = Theme.current === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
         ctx.fill();
         
-        // 内阴影效果（通过边框模拟）
-        ctx.strokeStyle = Theme.current === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        // 内阴影效果（多层描边）
+        for (let i = 0; i < 3; i++) {
+            ctx.strokeStyle = Theme.current === 'dark'
+                ? `rgba(0,0,0,${0.15 - i * 0.05})`
+                : `rgba(0,0,0,${0.1 - i * 0.03})`;
+            ctx.lineWidth = 3 - i;
+            ctx.stroke();
+        }
         
         ctx.restore();
         
-        // 绘制网格图案
+        // 点阵背景
         ctx.save();
-        ctx.globalAlpha = 0.1;
-        ctx.strokeStyle = Theme.colors.text.hint;
-        ctx.lineWidth = 1;
-        const gridSize = 40;
-        for (let gx = x; gx <= x + w; gx += gridSize) {
-            ctx.beginPath();
-            ctx.moveTo(gx, y);
-            ctx.lineTo(gx, y + h);
-            ctx.stroke();
-        }
-        for (let gy = y; gy <= y + h; gy += gridSize) {
-            ctx.beginPath();
-            ctx.moveTo(x, gy);
-            ctx.lineTo(x + w, gy);
-            ctx.stroke();
+        ctx.globalAlpha = 0.15;
+        ctx.fillStyle = Theme.colors.text.hint;
+        const dotSize = 2;
+        const dotGap = 30;
+        for (let gx = x + dotGap; gx < x + w; gx += dotGap) {
+            for (let gy = y + dotGap; gy < y + h; gy += dotGap) {
+                ctx.beginPath();
+                ctx.arc(gx, gy, dotSize, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
         ctx.restore();
+        
+        // 区域标签
+        ctx.font = '12px monospace';
+        ctx.fillStyle = Theme.colors.text.hint;
+        ctx.textAlign = 'center';
+        ctx.fillText(t('previewArea'), x + w/2, y + 15);
         
         // 绘制控制器
         if (this.mode === 'single') {
@@ -498,7 +629,7 @@ class ControlsConfigUI {
 
     _drawJoystick(ctx, config, playerIndex, active) {
         const isDark = Theme.current === 'dark';
-        const playerColor = playerIndex === 0 ? '#E74C3C' : '#2196F3';
+        const playerColor = Theme.colors.tanks[playerIndex] || Theme.colors.tanks[0];
         const alpha = this.isDragging && this.dragTarget &&
                       this.dragTarget.type === 'joystick' &&
                       this.dragTarget.player === playerIndex ? 0.5 : 0.8;
@@ -506,8 +637,24 @@ class ControlsConfigUI {
         ctx.save();
         ctx.globalAlpha = alpha;
         
-        // 底座
-        ctx.fillStyle = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+        // 拖动阴影
+        if (this.isDragging && this.dragTarget &&
+            this.dragTarget.type === 'joystick' &&
+            this.dragTarget.player === playerIndex) {
+            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.shadowBlur = 20;
+            ctx.shadowOffsetX = 5;
+            ctx.shadowOffsetY = 5;
+        }
+        
+        // 底座径向渐变
+        const baseGrad = ctx.createRadialGradient(
+            config.x, config.y, 0,
+            config.x, config.y, config.outerRadius
+        );
+        baseGrad.addColorStop(0, isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)');
+        baseGrad.addColorStop(1, isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)');
+        ctx.fillStyle = baseGrad;
         ctx.beginPath();
         ctx.arc(config.x, config.y, config.outerRadius, 0, Math.PI * 2);
         ctx.fill();
@@ -516,56 +663,124 @@ class ControlsConfigUI {
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        // 摇杆头
-        ctx.fillStyle = playerColor;
+        // 摇杆头光泽
+        const headGrad = ctx.createRadialGradient(
+            config.x - config.innerRadius * 0.3,
+            config.y - config.innerRadius * 0.3,
+            0,
+            config.x, config.y,
+            config.innerRadius
+        );
+        headGrad.addColorStop(0, this._lightenColor(playerColor, 0.3));
+        headGrad.addColorStop(1, playerColor);
+        ctx.fillStyle = headGrad;
         ctx.beginPath();
         ctx.arc(config.x, config.y, config.innerRadius, 0, Math.PI * 2);
         ctx.fill();
         
-        // 死区圆圈（在摇杆头之后绘制，使用高对比度）
+        // 死区圆圈柔和化
         if (config.deadZone > 0) {
-            ctx.globalAlpha = 1.0; // 完全不透明
-            ctx.strokeStyle = isDark ? '#FFFF00' : '#FF00FF'; // 高对比度颜色：黄色/品红色
-            ctx.lineWidth = 3; // 粗线条
-            ctx.setLineDash([5, 5]); // 更明显的虚线
+            ctx.globalAlpha = alpha * 0.6;
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
             ctx.beginPath();
             ctx.arc(config.x, config.y, config.deadZone, 0, Math.PI * 2);
             ctx.stroke();
             ctx.setLineDash([]);
-            ctx.globalAlpha = alpha; // 恢复透明度
         }
         
         // 标签
+        ctx.globalAlpha = 1.0;
         ctx.fillStyle = Theme.colors.text.primary;
         ctx.font = 'bold 12px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(`P${playerIndex + 1}`, config.x, config.y + config.outerRadius + 20);
         
         ctx.restore();
+        
+        // 长按进度环
+        if (this.longPressTimer > 0 && this.dragTarget &&
+            this.dragTarget.type === 'joystick' &&
+            this.dragTarget.player === playerIndex) {
+            const progress = 1 - (this.longPressTimer / 0.3);
+            ctx.save();
+            ctx.strokeStyle = Theme.colors.tanks[0];
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(config.x, config.y, config.outerRadius + 10,
+                    -Math.PI/2, -Math.PI/2 + Math.PI * 2 * progress);
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+    
+    _lightenColor(color, amount) {
+        // 简单的颜色变亮函数
+        const hex = color.replace('#', '');
+        const r = Math.min(255, parseInt(hex.substr(0, 2), 16) + amount * 255);
+        const g = Math.min(255, parseInt(hex.substr(2, 2), 16) + amount * 255);
+        const b = Math.min(255, parseInt(hex.substr(4, 2), 16) + amount * 255);
+        return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
     }
 
     _drawFireButton(ctx, config, playerIndex, active) {
-        const alpha = this.isDragging && this.dragTarget && 
-                      this.dragTarget.type === 'fire' && 
+        const alpha = this.isDragging && this.dragTarget &&
+                      this.dragTarget.type === 'fire' &&
                       this.dragTarget.player === playerIndex ? 0.5 : 0.8;
         
         ctx.save();
         ctx.globalAlpha = alpha;
         
-        // 按钮
+        // 拖动阴影
+        if (this.isDragging && this.dragTarget &&
+            this.dragTarget.type === 'fire' &&
+            this.dragTarget.player === playerIndex) {
+            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.shadowBlur = 20;
+            ctx.shadowOffsetX = 5;
+            ctx.shadowOffsetY = 5;
+        }
+        
+        // 按钮阴影
+        ctx.shadowColor = 'rgba(0,0,0,0.3)';
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetY = 3;
+        
+        // 按钮渐变（增强立体感）
         const grad = ctx.createRadialGradient(
-            config.x - config.radius * 0.25, config.y - config.radius * 0.25, config.radius * 0.05,
-            config.x, config.y, config.radius
+            config.x - config.radius * 0.3,
+            config.y - config.radius * 0.3,
+            0,
+            config.x, config.y,
+            config.radius
         );
-        grad.addColorStop(0, '#FF6B6B');
+        grad.addColorStop(0, '#FF8787');
+        grad.addColorStop(0.6, '#FF6B6B');
         grad.addColorStop(1, '#C0392B');
         ctx.fillStyle = grad;
         ctx.beginPath();
         ctx.arc(config.x, config.y, config.radius, 0, Math.PI * 2);
         ctx.fill();
         
+        // 高光
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.beginPath();
+        ctx.arc(
+            config.x - config.radius * 0.25,
+            config.y - config.radius * 0.25,
+            config.radius * 0.3,
+            0, Math.PI * 2
+        );
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.fill();
+        
+        // 边框
         ctx.strokeStyle = 'rgba(255,255,255,0.5)';
         ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(config.x, config.y, config.radius, 0, Math.PI * 2);
         ctx.stroke();
         
         // 准星
@@ -584,9 +799,30 @@ class ControlsConfigUI {
         ctx.stroke();
         
         ctx.restore();
+        
+        // 长按进度环
+        if (this.longPressTimer > 0 && this.dragTarget &&
+            this.dragTarget.type === 'fire' &&
+            this.dragTarget.player === playerIndex) {
+            const progress = 1 - (this.longPressTimer / 0.3);
+            ctx.save();
+            ctx.strokeStyle = Theme.colors.tanks[0];
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(config.x, config.y, config.radius + 10,
+                    -Math.PI/2, -Math.PI/2 + Math.PI * 2 * progress);
+            ctx.stroke();
+            ctx.restore();
+        }
     }
 
     _drawPanel(ctx) {
+        // 背景遮罩（模拟模糊效果）
+        ctx.save();
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+        ctx.restore();
+        
         const panelX = CANVAS_W / 2 - 150;
         const panelY = CANVAS_H / 2 - 100;
         const panelW = 300;
@@ -613,16 +849,17 @@ class ControlsConfigUI {
         ctx.quadraticCurveTo(panelX, panelY, panelX + radius, panelY);
         ctx.closePath();
         
-        // 渐变背景
-        const grad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
-        grad.addColorStop(0, 'rgba(30, 30, 40, 0.95)');
-        grad.addColorStop(1, 'rgba(20, 20, 30, 0.95)');
-        ctx.fillStyle = grad;
+        // 面板背景（毛玻璃效果）
+        ctx.fillStyle = Theme.current === 'dark'
+            ? 'rgba(40,40,40,0.95)'
+            : 'rgba(255,255,255,0.95)';
         ctx.fill();
         
-        // 边框
+        // 面板边框发光
+        ctx.shadowColor = Theme.colors.tanks[0];
+        ctx.shadowBlur = 20;
         ctx.strokeStyle = Theme.colors.tanks[0];
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2;
         ctx.stroke();
         
         ctx.restore();
@@ -708,11 +945,26 @@ class ControlsConfigUI {
     }
 
     _drawSlider(ctx, x, y, w, label, value, min, max) {
-        ctx.fillStyle = '#FFFFFF';
+        // 标签
+        ctx.fillStyle = Theme.current === 'dark' ? '#FFFFFF' : Theme.colors.text.primary;
         ctx.font = '12px monospace';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`${label}: ${value}`, x, y - 10);
+        ctx.fillText(label, x, y - 10);
+        
+        // 刻度标记
+        const steps = 5;
+        ctx.save();
+        ctx.strokeStyle = Theme.current === 'dark' ? 'rgba(255,255,255,0.3)' : Theme.colors.text.hint;
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= steps; i++) {
+            const tickX = x + (w / steps) * i;
+            ctx.beginPath();
+            ctx.moveTo(tickX, y + 15);
+            ctx.lineTo(tickX, y + 20);
+            ctx.stroke();
+        }
+        ctx.restore();
         
         const trackH = 8;
         const trackRadius = trackH / 2;
@@ -728,7 +980,7 @@ class ControlsConfigUI {
         ctx.arc(x + trackRadius, y, trackRadius, Math.PI / 2, -Math.PI / 2);
         ctx.closePath();
         
-        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.fillStyle = Theme.current === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)';
         ctx.fill();
         
         // 绘制进度条
@@ -783,5 +1035,11 @@ class ControlsConfigUI {
         ctx.stroke();
         
         ctx.restore();
+        
+        // 当前值提示（在滑块上方）
+        ctx.font = 'bold 14px monospace';
+        ctx.fillStyle = Theme.current === 'dark' ? '#FFFFFF' : Theme.colors.text.primary;
+        ctx.textAlign = 'center';
+        ctx.fillText(Math.round(value), knobX, y - 25);
     }
 }
