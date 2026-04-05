@@ -1,0 +1,29 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #222;
+    /* 防止双击缩放 */
+    touch-action: manipulation;
+}
+body {
+    /* 移除flex布局，canvas现在是全屏的 */
+}
+#game {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+    /* 禁用触摸选择和长按菜单 */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    /* 禁用触摸默认行为 */
+    touch-action: none;
+}

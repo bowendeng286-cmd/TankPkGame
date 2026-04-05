@@ -1,0 +1,11 @@
+/.claude/
+/.golutra/
+/.opencode/
+/.roo/
+/.vscode/
+/unpackage/
+*.apk
+*.keystore
+*.backup
+Thumbs.db
+.DS_Store
