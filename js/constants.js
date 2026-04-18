@@ -134,7 +134,7 @@ const BULLET_MAX_LIFETIME = 8;
 const SHOOT_COOLDOWN = 0.5;
 
 // ===== Laser =====
-const LASER_SPEED = 520;
+const LASER_SPEED = 780;
 const LASER_BEAM_WIDTH = 6;
 const LASER_RADIUS = LASER_BEAM_WIDTH / 2;
 const LASER_TAIL_LENGTH = 90;
