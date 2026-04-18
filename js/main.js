@@ -76,11 +76,6 @@ function startRound() {
         ctrl.reactionTimer = 0;
         ctrl._cachedRicochet = null;
         ctrl._ricochetTimer = 0;
-        ctrl._lastDodgeDir = null;
-        ctrl._dodgeCommitTime = 0;
-        ctrl._dodgeElapsed = 0;
-        ctrl._dodgeOrigin = null;
-        ctrl._dodgeStartAngle = null;
         ctrl._threatGraceTime = 0;
         ctrl._threatMemory = null;
         ctrl._attackStallTime = 0;

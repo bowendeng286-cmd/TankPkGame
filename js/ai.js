@@ -10,15 +10,9 @@ class AIController {
         this.reactionTimer = 0;
         this.shootCooldown = 0;
         this.wanderTarget = null;
-        this.dodgeDir = 0;
         this.thinkTimer = 0;
         this._cachedRicochet = null;
         this._ricochetTimer = 0;
-        this._lastDodgeDir = null;
-        this._dodgeCommitTime = 0;
-        this._dodgeElapsed = 0;
-        this._dodgeOrigin = null;
-        this._dodgeStartAngle = null;
         this._threatGraceTime = 0;
         this._threatMemory = null;
         this._attackStallTime = 0;
@@ -58,12 +52,6 @@ class AIController {
         }
 
         this._lastDodgeAction = null;
-
-        if (threats.length === 0) {
-            this._lastDodgeDir = null;
-            this._dodgeOrigin = null;
-            this._dodgeStartAngle = null;
-        }
 
         if (nearest && this._shouldContinueReposition(tank)) {
             this._pursue(dt, tank, this._repositionTarget, maze, nearest);
@@ -150,14 +138,6 @@ class AIController {
         return this._getParam('urgentThreatTime', AI_URGENT_THREAT_TIME);
     }
 
-    _getDodgePreviewDist() {
-        return this._getParam('dodgePreviewDist', AI_DODGE_PREVIEW_DIST);
-    }
-
-    _getDodgeCommitTime() {
-        return this._getParam('dodgeCommitTime', AI_DODGE_COMMIT_TIME);
-    }
-
     _getThreatPadding() {
         return this._getParam('threatPadding', 0);
     }
@@ -208,10 +188,6 @@ class AIController {
 
     _getThreatGraceTime() {
         return this._getParam('threatGraceTime', AI_DODGE_THREAT_GRACE);
-    }
-
-    _getDodgeMoveReadyAngle() {
-        return this._getParam('dodgeMoveReadyAngle', AI_DODGE_MOVE_READY_ANGLE);
     }
 
     _getDirectHoldTime() {
@@ -751,63 +727,6 @@ class AIController {
         return false;
     }
 
-    _shouldBreakDodgeLock(tank, threats, maze) {
-        if (!this._lastDodgeDir) return true;
-        if (!isFinite(this._scoreDodgeDirection(tank, this._lastDodgeDir, threats, maze))) return true;
-        if (!this._dodgeOrigin) return false;
-        if (this._dodgeElapsed < AI_DODGE_STUCK_TIME) return false;
-        const moved = vecDist(tank, this._dodgeOrigin);
-        const startAngle = this._dodgeStartAngle == null ? tank.angle : this._dodgeStartAngle;
-        const turned = Math.abs(angleDiff(startAngle, tank.angle));
-        return moved < AI_DODGE_STUCK_DISTANCE && turned < AI_DODGE_STUCK_ANGLE;
-    }
-
-    _scoreDodgeDirection(tank, dir, threats, maze) {
-        if (!dir) return -Infinity;
-
-        const previewDist = this._getDodgePreviewDist() * (dir.backward ? 0.8 : 1);
-        const targetAngle = dir.backward ? Math.atan2(-dir.y, -dir.x) : Math.atan2(dir.y, dir.x);
-        const wallBuffer = this._getDodgeWallBuffer();
-        const moveReadyAngle = this._getDodgeMoveReadyAngle();
-        const turnDiff = angleDiff(tank.angle, targetAngle);
-        const turnAbs = Math.abs(turnDiff);
-        const startMoveFraction = turnAbs <= moveReadyAngle
-            ? 0
-            : clamp((turnAbs - moveReadyAngle) / Math.PI, 0.18, 0.55);
-        let score = 0;
-
-        for (const fraction of [0.25, 0.5, 0.75, 1]) {
-            const turnProgress = startMoveFraction > 1e-6 ? Math.min(1, fraction / startMoveFraction) : 1;
-            const sampleAngle = tank.angle + turnDiff * turnProgress;
-            const moveProgress = startMoveFraction > 0 && fraction <= startMoveFraction
-                ? 0
-                : (startMoveFraction > 0 ? (fraction - startMoveFraction) / (1 - startMoveFraction) : fraction);
-            const sample = {
-                x: tank.x + dir.x * previewDist * clamp(moveProgress, 0, 1),
-                y: tank.y + dir.y * previewDist * clamp(moveProgress, 0, 1)
-            };
-            if (this._tankPoseHitsMaze(tank, sample.x, sample.y, sampleAngle, maze, wallBuffer)) {
-                return -Infinity;
-            }
-
-            for (const threat of threats) {
-                score += vecDist(sample, threat.point) * (0.5 + fraction) / (threat.time + 0.05);
-            }
-        }
-
-        score -= turnAbs * 28;
-        if (dir.backward && !threats[0].urgent) score *= 0.88;
-
-        if (this._lastDodgeDir) {
-            const dot = dir.x * this._lastDodgeDir.x + dir.y * this._lastDodgeDir.y;
-            if (dot > 0.9) score += 45;
-            else if (dot > 0.6) score += 20;
-            else if (dot < -0.2) score -= 40;
-        }
-
-        return score;
-    }
-
     _dodge(dt, tank, threats, maze) {
         this.state = AI_STATE.DODGING;
 
@@ -820,20 +739,7 @@ class AIController {
             : (this._lastDodgeAction || { move: -1, turn: 0 });
 
         this._lastDodgeAction = { move: action.move, turn: action.turn };
-        this._lastDodgeDir = null;
-        this._dodgeOrigin = null;
-        this._dodgeStartAngle = null;
         this._applyDodgeAction(tank, action);
-    }
-
-    _executeDodgeMove(tank, dir) {
-        const targetAngle = dir.backward ? Math.atan2(-dir.y, -dir.x) : Math.atan2(dir.y, dir.x);
-        this._steerToward(0, tank, targetAngle);
-        const diff = Math.abs(angleDiff(tank.angle, targetAngle));
-        const moveReady = dir.backward || diff < this._getDodgeMoveReadyAngle();
-        tank.input.forward = moveReady && !dir.backward;
-        tank.input.backward = moveReady && !!dir.backward;
-        tank.input.fire = false;
     }
 
     _aimAndShoot(dt, tank, target) {
