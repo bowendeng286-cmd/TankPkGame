@@ -85,6 +85,136 @@ class Renderer {
         ctx.fill();
     }
 
+    drawPickups(pickups) {
+        if (!pickups || pickups.length === 0) return;
+        for (const pickup of pickups) {
+            if (!pickup.alive) continue;
+            this._drawPickup(pickup);
+        }
+    }
+
+    _drawPickup(pickup) {
+        const ctx = this.ctx;
+        const fallProgress = clamp(pickup.spawnTime / PICKUP_LAND_DURATION, 0, 1);
+        const hoverOffset = pickup.landed ? 0 : (1 - fallProgress) * PICKUP_DROP_HEIGHT;
+        const drawX = pickup.x;
+        const drawY = pickup.y - hoverOffset;
+        const scale = pickup.landed ? 1 : lerp(0.82, 1, fallProgress);
+
+        ctx.save();
+        ctx.fillStyle = colorWithAlpha('#000000', Theme.current === 'dark' ? 0.18 : 0.1);
+        ctx.beginPath();
+        ctx.ellipse(pickup.x, pickup.y + pickup.radius * 0.85, pickup.radius * 0.88, pickup.radius * 0.34, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        ctx.save();
+        ctx.translate(drawX, drawY);
+        ctx.scale(scale, scale);
+        ctx.shadowColor = colorWithAlpha('#E1C45A', 0.35);
+        ctx.shadowBlur = 6;
+
+        ctx.fillStyle = colorWithAlpha('#E5D28A', Theme.current === 'dark' ? 0.92 : 0.98);
+        ctx.beginPath();
+        ctx.arc(0, 0, pickup.radius * 0.58, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = colorWithAlpha('#333333', Theme.current === 'dark' ? 0.85 : 0.9);
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = -Math.PI / 2 + i * Math.PI / 3;
+            const px = Math.cos(angle) * pickup.radius * 0.88;
+            const py = Math.sin(angle) * pickup.radius * 0.88;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.stroke();
+
+        ctx.strokeStyle = colorWithAlpha('#333333', Theme.current === 'dark' ? 0.95 : 0.98);
+        ctx.lineWidth = 1.7;
+        ctx.beginPath();
+        ctx.moveTo(-2, -pickup.radius * 0.38);
+        ctx.lineTo(2, -pickup.radius * 0.08);
+        ctx.lineTo(-1, -pickup.radius * 0.08);
+        ctx.lineTo(3, pickup.radius * 0.42);
+        ctx.lineTo(-3, pickup.radius * 0.08);
+        ctx.lineTo(0, pickup.radius * 0.08);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    _drawLaserPath(path, color, includeBouncePoints) {
+        if (!path || !path.segments || path.segments.length === 0) return;
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.shadowColor = colorWithAlpha(color, 0.3);
+        ctx.shadowBlur = 4;
+        ctx.strokeStyle = colorWithAlpha(color, 0.82);
+        ctx.lineWidth = LASER_PREVIEW_LINE_WIDTH;
+        for (const segment of path.segments) {
+            ctx.beginPath();
+            ctx.moveTo(segment.x1, segment.y1);
+            ctx.lineTo(segment.x2, segment.y2);
+            ctx.stroke();
+        }
+
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = colorWithAlpha('#FFFFFF', 0.7);
+        ctx.lineWidth = 1;
+        for (const segment of path.segments) {
+            ctx.beginPath();
+            ctx.moveTo(segment.x1, segment.y1);
+            ctx.lineTo(segment.x2, segment.y2);
+            ctx.stroke();
+        }
+
+        if (includeBouncePoints) {
+            ctx.fillStyle = colorWithAlpha('#FFF8C7', 0.72);
+            for (const bounce of path.bouncePoints || []) {
+                ctx.beginPath();
+                ctx.arc(bounce.x, bounce.y, 2.4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        ctx.restore();
+    }
+
+    drawLaserPreview(path, color) {
+        this._drawLaserPath(path, color, true);
+    }
+
+    _getTankColorById(ownerId) {
+        if (typeof tanks !== 'undefined' && tanks && ownerId != null) {
+            const owner = tanks.find(tank => tank && tank.id === ownerId);
+            if (owner) return owner.color;
+        }
+        return Theme.colors.bullet;
+    }
+
+    drawLaserShot(shot) {
+        if (!shot.alive) return;
+        const segments = shot.getVisibleSegments();
+        if (segments.length === 0) return;
+        const color = this._getTankColorById(shot.ownerId);
+        this._drawLaserPath({ segments }, color, false);
+    }
+
+    drawTankWeaponBadge(tank) {
+        if (!tank || !tank.alive || !tank.hasLaserWeapon()) return;
+        TouchUI.drawPill(this.ctx, tank.x - 28, tank.y - TANK_H / 2 - 20, 56, 16, t('laserReady'), {
+            accentColor: '#FFD84A',
+            textColor: Theme.colors.text.primary,
+            font: 'bold 9px monospace',
+            fillOpacity: 0.2,
+            borderOpacity: 0.55
+        });
+    }
+
     drawMuzzleFlash(x, y) {
         const ctx = this.ctx;
         ctx.fillStyle = '#FFD700';
@@ -107,6 +237,15 @@ class Renderer {
             ctx.fillStyle = tank.color;
             const label = tank.isAI ? t('ai') : `P${tank.id + 1}`;
             ctx.fillText(`${label}: ${tank.score}`, x, 25);
+            if (tank.hasLaserWeapon()) {
+                TouchUI.drawPill(ctx, x + 24, 10, 34, 18, t('laser'), {
+                    accentColor: '#FFD84A',
+                    textColor: Theme.colors.text.primary,
+                    font: 'bold 10px monospace',
+                    fillOpacity: 0.18,
+                    borderOpacity: 0.45
+                });
+            }
             x += 120;
         }
     }

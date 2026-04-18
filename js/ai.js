@@ -24,9 +24,10 @@ class AIController {
         this._turnLock = 0;
         this._lastDodgeAction = null;
         this._currentThreatForecasts = [];
+        this._pickupTargetId = -1;
     }
 
-    update(dt, tank, tanks, bullets, maze) {
+    update(dt, tank, tanks, bullets, pickups, laserShots, maze) {
         if (!tank.alive) return;
         this.reactionTimer -= dt;
         this.shootCooldown -= dt;
@@ -39,7 +40,7 @@ class AIController {
         const frameMove = this._lastTankPos ? vecDist(tank, this._lastTankPos) : Infinity;
         this._lastTankPos = { x: tank.x, y: tank.y };
 
-        const threatData = this._assessThreats(tank, bullets, maze);
+        const threatData = this._assessThreats(tank, bullets, laserShots, maze);
         this._currentThreatForecasts = threatData.forecasts;
         let threats = this._stabilizeThreats(dt, threatData.threats);
         const enemies = tanks.filter(t => t.alive && t.id !== tank.id);
@@ -53,13 +54,23 @@ class AIController {
 
         this._lastDodgeAction = null;
 
+        const directShot = nearest && this._canShootAt(tank, nearest, maze);
+        const ricochetShot = !directShot && nearest ? this._getRicochetShot(tank, nearest, maze) : null;
+        const pickupPlan = !tank.hasLaserWeapon() ? this._choosePickupTarget(tank, pickups, maze) : null;
+
+        if (pickupPlan && (pickupPlan.path.length <= 5 || (!directShot && !ricochetShot))) {
+            this._pickupTargetId = pickupPlan.pickup.id;
+            this._attackStallTime = 0;
+            this._clearReposition();
+            this._pursue(dt, tank, pickupPlan.pickup, maze, nearest);
+            return;
+        }
+        this._pickupTargetId = -1;
+
         if (nearest && this._shouldContinueReposition(tank)) {
             this._pursue(dt, tank, this._repositionTarget, maze, nearest);
             return;
         }
-
-        const directShot = nearest && this._canShootAt(tank, nearest, maze);
-        const ricochetShot = !directShot && nearest ? this._getRicochetShot(tank, nearest, maze) : null;
 
         if (directShot && this._shouldStartAttackReposition(dt, frameMove, tank, nearest, maze, 'direct')) {
             this._pursue(dt, tank, this._repositionTarget, maze, nearest);
@@ -79,7 +90,7 @@ class AIController {
         }
     }
 
-    _assessThreats(tank, bullets, maze) {
+    _assessThreats(tank, bullets, laserShots, maze) {
         const threats = [];
         const forecasts = [];
         const forecastTime = Math.max(this._getThreatLookahead(), this._getDodgePlanDepth() * this._getDodgePlanStep());
@@ -109,8 +120,77 @@ class AIController {
             }
         }
 
+        for (const shot of laserShots) {
+            if (!shot.alive) continue;
+
+            const visibleSegments = shot.getVisibleSegments();
+            for (const segment of visibleSegments) {
+                const hit = this._segmentHitsTankBody({
+                    x1: segment.x1,
+                    y1: segment.y1,
+                    x2: segment.x2,
+                    y2: segment.y2,
+                    radius: (shot.beamWidth || LASER_BEAM_WIDTH) * 0.5 + this._getThreatPadding() + 2
+                }, tank);
+                if (!hit) continue;
+
+                threats.push({
+                    bullet: shot,
+                    time: 0,
+                    point: { x: hit.x, y: hit.y },
+                    vx: segment.vx,
+                    vy: segment.vy,
+                    urgent: true,
+                    isLaser: true
+                });
+                break;
+            }
+
+            const trace = this._buildLaserThreatTrace(shot, forecastTime);
+            if (!trace || trace.segments.length === 0) continue;
+            if (!this._tracePassesNearTank(trace, tank, forecastRange + LASER_TAIL_LENGTH * 0.65)) continue;
+
+            forecasts.push({ bullet: shot, trace, isLaser: true });
+            for (const segment of trace.segments) {
+                const hit = this._segmentHitsTankBody(segment, tank);
+                if (!hit) continue;
+
+                const time = segment.t0 + (segment.t1 - segment.t0) * hit.t;
+                threats.push({
+                    bullet: shot,
+                    time,
+                    point: { x: hit.x, y: hit.y },
+                    vx: segment.vx,
+                    vy: segment.vy,
+                    urgent: true,
+                    isLaser: true
+                });
+                break;
+            }
+        }
+
         threats.sort((a, b) => a.time - b.time);
         return { threats, forecasts };
+    }
+
+    _buildLaserThreatTrace(shot, forecastTime) {
+        const maxDistance = Math.min(shot.totalLength, shot.distance + shot.speed * forecastTime);
+        if (maxDistance <= shot.distance + 1e-6) return null;
+
+        const segments = sliceRicochetSegments(shot.segments, shot.distance, maxDistance).map(segment => ({
+            x1: segment.x1,
+            y1: segment.y1,
+            x2: segment.x2,
+            y2: segment.y2,
+            t0: (segment.d0 - shot.distance) / shot.speed,
+            t1: (segment.d1 - shot.distance) / shot.speed,
+            vx: segment.vx,
+            vy: segment.vy,
+            bounces: segment.bounces,
+            radius: (shot.beamWidth || LASER_BEAM_WIDTH) * 0.5 + this._getThreatPadding() + 2
+        }));
+
+        return { segments };
     }
 
     _findNearest(tank, enemies) {
@@ -123,6 +203,25 @@ class AIController {
                 best = e;
             }
         }
+        return best;
+    }
+
+    _choosePickupTarget(tank, pickups, maze) {
+        let best = null;
+        let bestScore = Infinity;
+
+        for (const pickup of pickups) {
+            if (!pickup.alive || !pickup.landed || pickup.type !== 'laser') continue;
+            const path = this._findPath(tank, pickup, maze);
+            if (path.length === 0) continue;
+
+            const score = path.length * CELL_SIZE + vecDist(tank, pickup);
+            if (score < bestScore) {
+                bestScore = score;
+                best = { pickup, path };
+            }
+        }
+
         return best;
     }
 
@@ -239,11 +338,12 @@ class AIController {
             y: endDx * sinA + endDy * cosA
         };
 
+        const threatRadius = segment.radius != null ? segment.radius : BULLET_RADIUS;
         const hitT = this._intersectSegmentExpandedAABB(
             start,
             end,
-            TANK_W / 2 + BULLET_RADIUS + this._getThreatPadding(),
-            TANK_H / 2 + BULLET_RADIUS + this._getThreatPadding()
+            TANK_W / 2 + threatRadius + this._getThreatPadding(),
+            TANK_H / 2 + threatRadius + this._getThreatPadding()
         );
         if (hitT === null) return null;
 
@@ -506,7 +606,8 @@ class AIController {
             point: { x: threat.point.x, y: threat.point.y },
             vx: threat.vx,
             vy: threat.vy,
-            urgent: threat.urgent
+            urgent: threat.urgent,
+            isLaser: !!threat.isLaser
         }));
     }
 
@@ -530,7 +631,8 @@ class AIController {
                 point: { x: threat.point.x, y: threat.point.y },
                 vx: threat.vx,
                 vy: threat.vy,
-                urgent: time <= this._getUrgentThreatTime()
+                urgent: time <= this._getUrgentThreatTime(),
+                isLaser: !!threat.isLaser
             };
         });
 
@@ -548,6 +650,7 @@ class AIController {
         this._ricochetTimer = 0;
         this._turnLock = 0;
         this._lastDodgeAction = null;
+        this._pickupTargetId = -1;
     }
 
     _shouldDodge(threats) {
@@ -555,6 +658,7 @@ class AIController {
         if (this.params.alwaysDodge) return true;
 
         const leadTime = threats[0].time;
+        if (threats[0].isLaser) return true;
         if (leadTime <= this._getUrgentThreatTime()) return true;
 
         const dodgeWindow = this.params.dodgeWindow;
@@ -733,7 +837,9 @@ class AIController {
         const plannerMaze = {
             walls: this._getNearbyWalls(tank, maze, this._getDodgePlanRange())
         };
-        const plan = this._planDodgeActions(tank, plannerMaze, this._currentThreatForecasts);
+        const laserForecasts = (this._currentThreatForecasts || []).filter(forecast => forecast.isLaser);
+        const forecastPool = laserForecasts.length > 0 ? laserForecasts : this._currentThreatForecasts;
+        const plan = this._planDodgeActions(tank, plannerMaze, forecastPool);
         const action = plan && plan.actions.length > 0
             ? plan.actions[0]
             : (this._lastDodgeAction || { move: -1, turn: 0 });

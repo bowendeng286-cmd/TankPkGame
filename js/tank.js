@@ -12,6 +12,7 @@ class Tank {
         this.turnSpeed = TANK_TURN_SPEED; // AI 参考
         this.mouseControl = false;
         this.keyboardMapIndex = 0;
+        this.specialWeapon = null;
 
         // 刚体物理属性
         this.vx = 0;
@@ -66,6 +67,23 @@ class Tank {
 
     resetShootTimer(cd) {
         this.shootTimer = cd || SHOOT_COOLDOWN;
+    }
+
+    hasLaserWeapon() {
+        return !!(this.specialWeapon && this.specialWeapon.type === 'laser' && this.specialWeapon.charges > 0);
+    }
+
+    giveLaserWeapon() {
+        this.specialWeapon = { type: 'laser', charges: 1 };
+    }
+
+    consumeLaserWeapon() {
+        if (!this.hasLaserWeapon()) return false;
+        this.specialWeapon.charges--;
+        if (this.specialWeapon.charges <= 0) {
+            this.specialWeapon = null;
+        }
+        return true;
     }
 
     // 获取车体 OBB 四角点 (世界坐标)
@@ -145,6 +163,7 @@ class Tank {
 
     kill() {
         this.alive = false;
+        this.specialWeapon = null;
     }
 
     respawn(x, y, angle) {
@@ -159,6 +178,7 @@ class Tank {
         this._lastInputOmega = 0;
         this._lastInputVx = 0;
         this._lastInputVy = 0;
+        this.specialWeapon = null;
         this.input = { forward: false, backward: false, left: false, right: false, fire: false };
     }
 }
