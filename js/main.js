@@ -35,9 +35,14 @@ fitCanvas();
 var maze = null;
 var tanks = [];
 var bullets = [];
+var pickups = [];
+var laserShots = [];
 var aiControllers = [];
 var muzzleFlashes = []; // {x, y, timer}
 var config = null;
+var pickupSpawnTimer = 0;
+var roundElapsed = 0;
+var nextPickupId = 1;
 var pendingVictoryTimer = null; // 胜利缓冲倒计时（null=未激活）
 var pendingWinnerId = -1;       // 缓冲期触发时最后存活坦克ID（-1=无人存活）
 
@@ -55,14 +60,129 @@ function randomizeRoundMapSize() {
     fitCanvas();
 }
 
+function buildLaserPreviewPath(tank) {
+    if (!tank || !tank.alive || !tank.hasLaserWeapon() || !maze) return null;
+    const muzzle = tank.getMuzzle();
+    const fullPath = traceRicochetPath({
+        x: muzzle.x,
+        y: muzzle.y,
+        vx: Math.cos(tank.angle) * LASER_SPEED,
+        vy: Math.sin(tank.angle) * LASER_SPEED,
+        radius: LASER_RADIUS,
+        ownerId: tank.id
+    }, maze.walls, LASER_PREVIEW_MAX_BOUNCES, getRicochetMaxDistance(LASER_PREVIEW_MAX_BOUNCES));
+
+    if (!fullPath || fullPath.segments.length === 0) return fullPath;
+    const cutoffPoint = fullPath.bouncePoints[LASER_PREVIEW_MAX_BOUNCES - 1];
+    if (!cutoffPoint) return fullPath;
+
+    return {
+        segments: sliceRicochetSegments(fullPath.segments, 0, cutoffPoint.distance),
+        bouncePoints: fullPath.bouncePoints.slice(0, LASER_PREVIEW_MAX_BOUNCES),
+        totalLength: cutoffPoint.distance,
+        finalState: fullPath.finalState
+    };
+}
+
+function isPickupSpawnPointValid(point) {
+    for (const wall of maze.walls) {
+        const closest = closestPointOnSegment(point, { x: wall.x1, y: wall.y1 }, { x: wall.x2, y: wall.y2 });
+        if (vecDist(point, closest) < PICKUP_RADIUS + PICKUP_SPAWN_WALL_BUFFER) return false;
+    }
+
+    for (const tank of tanks) {
+        if (!tank.alive) continue;
+        const safeRadius = Math.max(TANK_W, TANK_H) * 0.5 + PICKUP_RADIUS + PICKUP_SPAWN_TANK_BUFFER;
+        if (vecDist(point, tank) < safeRadius) return false;
+    }
+
+    for (const pickup of pickups) {
+        if (!pickup.alive) continue;
+        if (vecDist(point, pickup) < pickup.radius + PICKUP_RADIUS + PICKUP_SPAWN_PICKUP_BUFFER) return false;
+    }
+
+    return true;
+}
+
+function spawnLaserPickup(point) {
+    pickups.push({
+        id: nextPickupId++,
+        type: 'laser',
+        x: point.x,
+        y: point.y,
+        radius: PICKUP_RADIUS,
+        spawnTime: 0,
+        landed: false,
+        alive: true
+    });
+}
+
+function attemptPickupSpawn() {
+    if (pickups.filter(pickup => pickup.alive).length >= PICKUP_MAX_ACTIVE) return;
+
+    const candidates = [];
+    for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; col++) {
+            const point = cellCenter(row, col);
+            if (isPickupSpawnPointValid(point)) {
+                candidates.push(point);
+            }
+        }
+    }
+
+    if (candidates.length === 0) return;
+    shuffle(candidates);
+    spawnLaserPickup(candidates[0]);
+}
+
+function updatePickups(dt) {
+    roundElapsed += dt;
+    pickupSpawnTimer -= dt;
+    while (pickupSpawnTimer <= 0) {
+        attemptPickupSpawn();
+        pickupSpawnTimer += PICKUP_RESPAWN_INTERVAL;
+    }
+
+    for (const pickup of pickups) {
+        if (!pickup.alive) continue;
+        pickup.spawnTime += dt;
+        if (!pickup.landed && pickup.spawnTime >= PICKUP_LAND_DURATION) {
+            pickup.landed = true;
+            particles.emitPickupLanding(pickup.x, pickup.y);
+        }
+    }
+}
+
+function collectPickups() {
+    for (const pickup of pickups) {
+        if (!pickup.alive || !pickup.landed) continue;
+        for (const tank of tanks) {
+            if (!tank.alive || tank.hasLaserWeapon()) continue;
+            if (!pickupHitTank(pickup, tank)) continue;
+
+            if (pickup.type === 'laser') {
+                tank.giveLaserWeapon();
+            }
+            pickup.alive = false;
+            break;
+        }
+    }
+
+    pickups = pickups.filter(pickup => pickup.alive);
+}
+
 function startRound() {
     randomizeRoundMapSize();
     maze = generateMaze();
     bullets = [];
+    pickups = [];
+    laserShots = [];
     muzzleFlashes = [];
     particles.clear();
     pendingVictoryTimer = null;
     pendingWinnerId = -1;
+    pickupSpawnTimer = PICKUP_FIRST_SPAWN_DELAY;
+    roundElapsed = 0;
     // 生成重生点（间距≥3格）
     const spawns = _generateSpawns(tanks.length);
     tanks.forEach((t, i) => {
@@ -87,6 +207,7 @@ function startRound() {
         ctrl._turnLock = 0;
         ctrl._lastDodgeAction = null;
         ctrl._currentThreatForecasts = [];
+        ctrl._pickupTargetId = -1;
     });
 }
 
@@ -149,6 +270,8 @@ function startGame(cfg) {
     config = cfg;
     gameState.winScore = cfg.winScore;
     tanks = [];
+    pickups = [];
+    laserShots = [];
     aiControllers = [];
     const total = cfg.humanCount + cfg.aiCount;
     
@@ -247,12 +370,13 @@ function readHumanInput() {
 // ===== 游戏更新 =====
 function updateGame(dt) {
     readHumanInput();
+    updatePickups(dt);
 
     // AI 更新
     for (const { tank, ctrl } of aiControllers) {
         if (!tank.alive) continue;
         tank.input = { forward:false, backward:false, left:false, right:false, fire:false };
-        ctrl.update(dt, tank, tanks, bullets, maze);
+        ctrl.update(dt, tank, tanks, bullets, pickups, laserShots, maze);
     }
 
     // 坦克更新（线性移动 + 冲量碰撞）
@@ -262,7 +386,12 @@ function updateGame(dt) {
         // 射击
         if (t.input.fire && t.canShoot()) {
             const muzzle = t.getMuzzle();
-            bullets.push(new Bullet(muzzle.x, muzzle.y, t.angle, t.id));
+            if (t.hasLaserWeapon()) {
+                laserShots.push(new LaserShot(muzzle.x, muzzle.y, t.angle, t.id, maze.walls));
+                t.consumeLaserWeapon();
+            } else {
+                bullets.push(new Bullet(muzzle.x, muzzle.y, t.angle, t.id));
+            }
             t.resetShootTimer();
             muzzleFlashes.push({ x: muzzle.x, y: muzzle.y, timer: 0.08 });
         }
@@ -351,10 +480,22 @@ function updateGame(dt) {
         if (!t.alive) continue;
         hardConstraintWalls(t, maze.walls);
     }
+    collectPickups();
 
     // 子弹更新
     for (const b of bullets) {
         b.update(dt, maze.walls);
+    }
+    for (const shot of laserShots) {
+        if (!shot.alive) continue;
+        const previousBounceCount = shot.bounceCount;
+        shot.update(dt);
+        if (shot.bounceCount > previousBounceCount) {
+            for (let i = previousBounceCount; i < shot.bounceCount; i++) {
+                const bounce = shot.bouncePoints[i];
+                if (bounce) particles.emitLaserBounce(bounce.x, bounce.y);
+            }
+        }
     }
 
     // 子弹-坦克碰撞
@@ -373,7 +514,21 @@ function updateGame(dt) {
     }
 
     // 清理死亡子弹
+    for (const shot of laserShots) {
+        if (!shot.alive) continue;
+        for (const t of tanks) {
+            if (!t.alive) continue;
+            const hit = laserHitTank(shot, t);
+            if (!hit) continue;
+            t.kill();
+            particles.emit(t.x, t.y, t.color);
+            renderer.shake(1);
+        }
+    }
+
     bullets = bullets.filter(b => b.alive);
+    laserShots.forEach(shot => shot.finishFrame());
+    laserShots = laserShots.filter(shot => shot.alive);
 
     // 闪光更新
     for (let i = muzzleFlashes.length - 1; i >= 0; i--) {
@@ -422,8 +577,17 @@ function drawGame() {
     renderer.clear();
     renderer.drawGrid();
     renderer.drawWalls(maze.walls);
-    for (const t of tanks) renderer.drawTank(t);
+    renderer.drawPickups(pickups);
+    for (const t of tanks) {
+        const preview = buildLaserPreviewPath(t);
+        if (preview) renderer.drawLaserPreview(preview, t.color);
+    }
+    for (const t of tanks) {
+        renderer.drawTank(t);
+        renderer.drawTankWeaponBadge(t);
+    }
     for (const b of bullets) renderer.drawBullet(b);
+    for (const shot of laserShots) renderer.drawLaserShot(shot);
     for (const f of muzzleFlashes) renderer.drawMuzzleFlash(f.x, f.y);
     particles.draw(ctx);
     renderer.drawScoreboardTop(tanks);
