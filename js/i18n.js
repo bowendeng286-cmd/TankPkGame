@@ -76,6 +76,8 @@ const I18N_DICT = {
     pressEnter:   { zh: '按 回车键 继续', en: 'Press Enter to continue' },
     tapToContinue:{ zh: '请点击屏幕继续', en: 'Tap to continue' },
     ai:           { zh: 'AI', en: 'AI' },
+    laser:        { zh: '激光', en: 'LASER' },
+    laserReady:   { zh: 'LASER', en: 'LASER' },
 };
 
 const I18n = {

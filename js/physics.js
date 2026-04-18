@@ -255,10 +255,10 @@ function resolveTankTankPhysics(a, b) {
 }
 
 // ===== 子弹-坦克碰撞 (圆 vs OBB) =====
-function bulletHitTank(bullet, tank) {
-    if (!bullet.alive || !tank.alive) return false;
-    const dx = bullet.x - tank.x;
-    const dy = bullet.y - tank.y;
+function _circleHitTank(x, y, radius, tank) {
+    if (!tank.alive) return false;
+    const dx = x - tank.x;
+    const dy = y - tank.y;
     const c = Math.cos(-tank.angle), s = Math.sin(-tank.angle);
     const lx = dx * c - dy * s;
     const ly = dx * s + dy * c;
@@ -266,7 +266,90 @@ function bulletHitTank(bullet, tank) {
     const cx = Math.max(-hw, Math.min(hw, lx));
     const cy = Math.max(-hh, Math.min(hh, ly));
     const distSq = (lx - cx) * (lx - cx) + (ly - cy) * (ly - cy);
-    return distSq <= bullet.radius * bullet.radius;
+    return distSq <= radius * radius;
+}
+
+function bulletHitTank(bullet, tank) {
+    if (!bullet.alive || !tank.alive) return false;
+    return _circleHitTank(bullet.x, bullet.y, bullet.radius, tank);
+}
+
+function pickupHitTank(pickup, tank) {
+    if (!pickup.alive || !pickup.landed || !tank.alive) return false;
+    return _circleHitTank(pickup.x, pickup.y, pickup.radius, tank);
+}
+
+function segmentHitTank(segment, tank, expandRadius) {
+    if (!tank.alive) return null;
+
+    const cosA = Math.cos(-tank.angle);
+    const sinA = Math.sin(-tank.angle);
+    const startDx = segment.x1 - tank.x;
+    const startDy = segment.y1 - tank.y;
+    const endDx = segment.x2 - tank.x;
+    const endDy = segment.y2 - tank.y;
+    const start = {
+        x: startDx * cosA - startDy * sinA,
+        y: startDx * sinA + startDy * cosA
+    };
+    const end = {
+        x: endDx * cosA - endDy * sinA,
+        y: endDx * sinA + endDy * cosA
+    };
+
+    const halfW = TANK_W / 2 + (expandRadius || 0);
+    const halfH = TANK_H / 2 + (expandRadius || 0);
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    let tMin = 0;
+    let tMax = 1;
+
+    if (start.x >= -halfW && start.x <= halfW && start.y >= -halfH && start.y <= halfH) {
+        return { t: 0, x: segment.x1, y: segment.y1 };
+    }
+
+    if (Math.abs(dx) < 1e-10) {
+        if (start.x < -halfW || start.x > halfW) return null;
+    } else {
+        const tx1 = (-halfW - start.x) / dx;
+        const tx2 = (halfW - start.x) / dx;
+        tMin = Math.max(tMin, Math.min(tx1, tx2));
+        tMax = Math.min(tMax, Math.max(tx1, tx2));
+        if (tMin > tMax) return null;
+    }
+
+    if (Math.abs(dy) < 1e-10) {
+        if (start.y < -halfH || start.y > halfH) return null;
+    } else {
+        const ty1 = (-halfH - start.y) / dy;
+        const ty2 = (halfH - start.y) / dy;
+        tMin = Math.max(tMin, Math.min(ty1, ty2));
+        tMax = Math.min(tMax, Math.max(ty1, ty2));
+        if (tMin > tMax) return null;
+    }
+
+    if (tMin < 0 || tMin > 1) return null;
+    return {
+        t: tMin,
+        x: lerp(segment.x1, segment.x2, tMin),
+        y: lerp(segment.y1, segment.y2, tMin)
+    };
+}
+
+function laserHitTank(laserShot, tank) {
+    if (!laserShot.alive || !tank.alive) return null;
+    const sweepSegments = laserShot.getSweepSegments();
+    const expandRadius = (laserShot.beamWidth || LASER_BEAM_WIDTH) / 2;
+
+    let bestHit = null;
+    for (const segment of sweepSegments) {
+        const hit = segmentHitTank(segment, tank, expandRadius);
+        if (!hit) continue;
+        if (!bestHit || hit.t < bestHit.t) {
+            bestHit = hit;
+        }
+    }
+    return bestHit;
 }
 
 // ===== 硬约束位置修正（安全网，确保绝不穿墙） =====
