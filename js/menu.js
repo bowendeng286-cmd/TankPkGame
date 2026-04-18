@@ -16,6 +16,29 @@ function getAvailableModes(input) {
 var MODES = ALL_MODES;
 var WIN_SCORES = [3, 5, 7, 10];
 var DIFFICULTIES = ['easy', 'medium', 'hard'];
+var SINGLE_PLAYER_CONTROL_OPTIONS = ['keyboard_arrows', 'keyboard_wasd', 'mouse'];
+const SINGLE_PLAYER_CONTROL_STORAGE_KEY = 'tankgame_single_player_control';
+
+function loadSinglePlayerControlMode() {
+    try {
+        const saved = localStorage.getItem(SINGLE_PLAYER_CONTROL_STORAGE_KEY);
+        if (SINGLE_PLAYER_CONTROL_OPTIONS.indexOf(saved) !== -1) {
+            return saved;
+        }
+    } catch (e) {
+        console.warn('[Menu] Failed to load single player control mode:', e);
+    }
+    return SINGLE_PLAYER_CONTROL_OPTIONS[0];
+}
+
+function saveSinglePlayerControlMode(mode) {
+    if (SINGLE_PLAYER_CONTROL_OPTIONS.indexOf(mode) === -1) return;
+    try {
+        localStorage.setItem(SINGLE_PLAYER_CONTROL_STORAGE_KEY, mode);
+    } catch (e) {
+        console.warn('[Menu] Failed to save single player control mode:', e);
+    }
+}
 
 class Menu {
     constructor() {
@@ -32,6 +55,8 @@ class Menu {
         this.settingsMaxRow = 2;
         this.openSettings = false;
         this.openControlsConfig = false;
+        this.singleControlIndex = SINGLE_PLAYER_CONTROL_OPTIONS.indexOf(loadSinglePlayerControlMode());
+        if (this.singleControlIndex < 0) this.singleControlIndex = 0;
 
         this._input = null;
         this._prevKeys = new Set();
@@ -50,7 +75,7 @@ class Menu {
         MODES = getAvailableModes(input);
         if (this.modeIndex >= MODES.length) this.modeIndex = 0;
 
-        this.settingsMaxRow = input.isTouchDevice ? 3 : 2;
+        this.settingsMaxRow = this._getSettingsItems().length - 1;
 
         if (input.isTouchDevice && input._canvas) {
             this._onTouchEnd = (e) => {
@@ -122,6 +147,7 @@ class Menu {
 
     _updateSettings() {
         const input = this._input;
+        const items = this._getSettingsItems();
         const justPressed = (code) => {
             const down = input.isDown(code);
             const was = this._prevKeys.has(code);
@@ -140,6 +166,7 @@ class Menu {
         const confirmPressed = justPressed('Enter') || justPressed('Space');
         const escPressed = justPressed('Escape');
 
+        this.settingsMaxRow = items.length - 1;
         if (upPressed) this.settingsRow = Math.max(0, this.settingsRow - 1);
         if (downPressed) this.settingsRow = Math.min(this.settingsMaxRow, this.settingsRow + 1);
 
@@ -147,11 +174,12 @@ class Menu {
         if (rightPressed) this._changeSettingsOption(this.settingsRow, 1);
 
         if (confirmPressed) {
-            if (this._input.isTouchDevice && this.settingsRow === 2) {
+            const selectedItem = items[this.settingsRow];
+            if (selectedItem && selectedItem.kind === 'controls') {
                 this.openControlsConfig = true;
                 return;
             }
-            if (this.settingsRow === this.settingsMaxRow) {
+            if (selectedItem && selectedItem.kind === 'back') {
                 this._closeSettings();
             }
         }
@@ -166,11 +194,15 @@ class Menu {
     }
 
     _changeSettingsOption(row, direction) {
-        if (row === 0) {
+        const item = this._getSettingsItems()[row];
+        if (!item || item.kind !== 'adjust') return;
+
+        if (item.setting === 'language') {
             if (direction < 0) I18n.prevLang();
             else I18n.nextLang();
         }
-        if (row === 1) Theme.toggle();
+        if (item.setting === 'theme') Theme.toggle();
+        if (item.setting === 'singleControl') this._cycleSinglePlayerControl(direction);
     }
 
     _startGame() {
@@ -180,6 +212,7 @@ class Menu {
             aiCount: mode.ai,
             winScore: WIN_SCORES[this.scoreIndex],
             difficulty: DIFFICULTIES[this.diffIndex],
+            singleControlMode: this._getSinglePlayerControlMode(),
         };
         this.done = true;
     }
@@ -281,7 +314,7 @@ class Menu {
 
         ctx.font = '14px monospace';
         ctx.fillStyle = Theme.colors.text.hint;
-        ctx.fillText(t('controls'), CANVAS_W / 2, CANVAS_H - 40);
+        ctx.fillText(this._getControlsHintText(), CANVAS_W / 2, CANVAS_H - 40);
         ctx.fillText(t('navHint'), CANVAS_W / 2, CANVAS_H - 20);
     }
 
@@ -293,20 +326,17 @@ class Menu {
 
         const startY = 200;
         const gap = 60;
-        const items = [
-            { label: t('language'), value: t('langName') },
-            { label: t('theme'), value: t(Theme.current === 'light' ? 'themeLight' : 'themeDark') },
-        ];
-        if (this._input.isTouchDevice) items.push({ label: t('controlsConfig'), value: '' });
-        items.push({ label: t('back'), value: '' });
+        const items = this._getSettingsItems();
 
         for (let i = 0; i < items.length; i++) {
             const y = startY + i * gap;
             const selected = i === this.settingsRow;
             ctx.font = selected ? 'bold 22px monospace' : '20px monospace';
             ctx.fillStyle = selected ? Theme.colors.tanks[0] : Theme.colors.text.secondary;
-            if (items[i].value) ctx.fillText(`${items[i].label}:  < ${items[i].value} >`, CANVAS_W / 2, y);
-            else ctx.fillText(items[i].label, CANVAS_W / 2, y);
+            const label = this._getSettingsItemLabel(items[i]);
+            const value = this._getSettingsItemValue(items[i]);
+            if (value) ctx.fillText(`${label}:  < ${value} >`, CANVAS_W / 2, y);
+            else ctx.fillText(label, CANVAS_W / 2, y);
         }
 
         ctx.font = '14px monospace';
@@ -544,6 +574,62 @@ class Menu {
         options.push({ x: cardX, y: actionY, w: cardW, h: 56, radius: 20, kind: 'back' });
 
         return { board, options };
+    }
+
+    _getSettingsItems() {
+        const items = [
+            { kind: 'adjust', setting: 'language' },
+            { kind: 'adjust', setting: 'theme' }
+        ];
+
+        if (this._input && this._input.isTouchDevice) {
+            items.push({ kind: 'controls' });
+        } else {
+            items.push({ kind: 'adjust', setting: 'singleControl' });
+        }
+
+        items.push({ kind: 'back' });
+        return items;
+    }
+
+    _getSettingsItemLabel(item) {
+        if (item.kind === 'back') return t('back');
+        if (item.kind === 'controls') return t('controlsConfig');
+        if (item.setting === 'language') return t('language');
+        if (item.setting === 'theme') return t('theme');
+        if (item.setting === 'singleControl') return t('singlePlayerControl');
+        return '';
+    }
+
+    _getSettingsItemValue(item) {
+        if (!item || item.kind !== 'adjust') return '';
+        if (item.setting === 'language') return t('langName');
+        if (item.setting === 'theme') return t(Theme.current === 'light' ? 'themeLight' : 'themeDark');
+        if (item.setting === 'singleControl') return t(this._getSinglePlayerControlMode());
+        return '';
+    }
+
+    _getSinglePlayerControlMode() {
+        return SINGLE_PLAYER_CONTROL_OPTIONS[this.singleControlIndex] || SINGLE_PLAYER_CONTROL_OPTIONS[0];
+    }
+
+    _cycleSinglePlayerControl(direction) {
+        const total = SINGLE_PLAYER_CONTROL_OPTIONS.length;
+        this.singleControlIndex = (this.singleControlIndex + direction + total) % total;
+        saveSinglePlayerControlMode(this._getSinglePlayerControlMode());
+    }
+
+    _getControlsHintText() {
+        const mode = MODES[this.modeIndex];
+        if (!mode || mode.players !== 1) return t('controls');
+
+        const hintKeyByMode = {
+            keyboard_arrows: 'singleControlsArrows',
+            keyboard_wasd: 'singleControlsWasd',
+            mouse: 'singleControlsMouse'
+        };
+        const hintKey = hintKeyByMode[this._getSinglePlayerControlMode()] || 'singleControlsArrows';
+        return t(hintKey);
     }
 
     _plainLabel(text) {

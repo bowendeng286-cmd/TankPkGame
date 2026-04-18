@@ -117,6 +117,31 @@ function _generateSpawns(count) {
     return positions;
 }
 
+function applyHumanControlScheme(tank, playerIndex, cfg) {
+    tank.mouseControl = false;
+    tank.keyboardMapIndex = playerIndex < KEY_MAPS.length ? playerIndex : 0;
+
+    if (input.touchEnabled) return;
+
+    if (cfg.humanCount === 1) {
+        const singleControlMode = cfg.singleControlMode || 'keyboard_arrows';
+        if (singleControlMode === 'keyboard_wasd') {
+            tank.keyboardMapIndex = 1;
+            return;
+        }
+        if (singleControlMode === 'mouse') {
+            tank.mouseControl = true;
+            return;
+        }
+        tank.keyboardMapIndex = 0;
+        return;
+    }
+
+    if (playerIndex === 2) {
+        tank.mouseControl = true;
+    }
+}
+
 // ===== 开始游戏 =====
 function startGame(cfg) {
     menu.deactivate();  // 移除菜单的触摸事件监听器
@@ -135,8 +160,7 @@ function startGame(cfg) {
     for (let i = 0; i < total; i++) {
         const t = new Tank(0, 0, 0, Theme.colors.tanks[i % Theme.colors.tanks.length], i);
         t.isAI = i >= cfg.humanCount;
-        // Player 3 (index 2) 使用鼠标控制
-        if (i === 2 && !t.isAI) t.mouseControl = true;
+        if (!t.isAI) applyHumanControlScheme(t, i, cfg);
         tanks.push(t);
     }
     for (let i = cfg.humanCount; i < total; i++) {
@@ -210,7 +234,8 @@ function readHumanInput() {
         }
 
         // 键盘控制
-        const km = KEY_MAPS[i];
+        const keyboardMapIndex = t.keyboardMapIndex != null ? t.keyboardMapIndex : i;
+        const km = KEY_MAPS[keyboardMapIndex] || KEY_MAPS[0];
         t.input.forward  = input.isDown(km.up);
         t.input.backward = input.isDown(km.down);
         t.input.left     = input.isDown(km.left);

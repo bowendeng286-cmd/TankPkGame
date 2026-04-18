@@ -27,17 +27,24 @@ const I18N_DICT = {
 
     // 操作提示
     controls:     { zh: 'P1: 方向键+M  |  P2: WASD+空格  |  P3: 鼠标', en: 'P1: Arrow Keys + M  |  P2: WASD + Space  |  P3: Mouse' },
+    singleControlsArrows: { zh: '单人: 方向键+M', en: 'Single: Arrow Keys + M' },
+    singleControlsWasd: { zh: '单人: WASD+空格', en: 'Single: WASD + Space' },
+    singleControlsMouse: { zh: '单人: 鼠标 + 左键开火', en: 'Single: Mouse + Left Click Fire' },
     navHint:      { zh: '↑↓ 选择  |  ←→ 切换  |  回车确认', en: '↑↓ Navigate  |  ←→ Change  |  Enter Start' },
     touchHint:    { zh: '点击卡片左右区域切换，点击按钮继续', en: 'Tap card edges to switch, then tap a button below' },
 
     // 设置页面
     settingsTitle:{ zh: '设  置', en: 'SETTINGS' },
-    settingsSubtitle: { zh: '语言、主题与触摸控制', en: 'Language, theme and touch controls' },
+    settingsSubtitle: { zh: '语言、主题与控制方式', en: 'Language, theme and controls' },
     language:     { zh: '语言', en: 'Language' },
     langName:     { zh: '中文', en: 'English' },
     theme:        { zh: '主题', en: 'Theme' },
     themeLight:   { zh: '亮色模式', en: 'Light Mode' },
     themeDark:    { zh: '深色模式', en: 'Dark Mode' },
+    singlePlayerControl: { zh: '单人模式操控', en: 'Single Player Controls' },
+    keyboard_arrows: { zh: '方向键 + M', en: 'Arrow Keys + M' },
+    keyboard_wasd: { zh: 'WASD + 空格', en: 'WASD + Space' },
+    mouse:        { zh: '鼠标', en: 'Mouse' },
     controlsConfig: { zh: '控制器设置', en: 'Controls Config' },
     back:         { zh: '[ 返  回 ]', en: '[ BACK ]' },
 

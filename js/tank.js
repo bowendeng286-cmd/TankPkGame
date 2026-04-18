@@ -11,6 +11,7 @@ class Tank {
         this.speed = TANK_SPEED;       // AI 参考速度
         this.turnSpeed = TANK_TURN_SPEED; // AI 参考
         this.mouseControl = false;
+        this.keyboardMapIndex = 0;
 
         // 刚体物理属性
         this.vx = 0;
