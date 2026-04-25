@@ -44,7 +44,6 @@ class ControlsConfigUI {
         this.panelTarget = null;
         this.panelSlider = null;
         this.panelSnapshot = null;
-
         if (input._canvas) {
             this._onTouchStart = (e) => this._handleTouchStart(e);
             this._onTouchMove = (e) => this._handleTouchMove(e);
@@ -218,6 +217,32 @@ class ControlsConfigUI {
         };
     }
 
+    _getDisplayScale() {
+        if (!this._input || !this._input._canvas) return 1;
+
+        const surface = this._getSurfaceSize();
+        if (!surface.width || !surface.height) return 1;
+
+        const scaleX = this._input._canvas.width / surface.width;
+        const scaleY = this._input._canvas.height / surface.height;
+        return Math.min(scaleX, scaleY, 1);
+    }
+
+    _getDisplayBounds() {
+        const surface = this._getSurfaceSize();
+        const scale = this._getDisplayScale();
+        const w = surface.width * scale;
+        const h = surface.height * scale;
+
+        return {
+            x: (CANVAS_W - w) / 2,
+            y: (CANVAS_H - h) / 2,
+            w,
+            h,
+            scale
+        };
+    }
+
     _surfaceToPreviewPoint(x, y, bounds) {
         const surface = this._getSurfaceSize();
         return {
@@ -269,17 +294,20 @@ class ControlsConfigUI {
     }
 
     _getLayout() {
+        const display = this._getDisplayBounds();
+        const panelWidth = Math.min(Math.max(460, display.w - 292), display.w - 40);
+        const actionGroupWidth = 444;
         return {
             modeButtons: {
-                single: { x: CANVAS_W / 2 - 152, y: 104, w: 136, h: 42, radius: 18 },
-                dual: { x: CANVAS_W / 2 + 16, y: 104, w: 136, h: 42, radius: 18 }
+                single: { x: display.x + 20, y: display.y + 20, w: 136, h: 42, radius: 18 },
+                dual: { x: display.x + 20 + 152, y: display.y + 20, w: 136, h: 42, radius: 18 }
             },
-            preview: { x: 24, y: 84, w: CANVAS_W - 48, h: 500, radius: 30 },
-            guide: { x: 170, y: 448, w: 500, h: 68, radius: 20 },
+            preview: { x: display.x, y: display.y, w: display.w, h: display.h, radius: 30 },
+            guide: { x: display.x + Math.max(20, (display.w - panelWidth) / 2), y: display.y + display.h - 82, w: panelWidth, h: 68, radius: 20 },
             actions: {
-                reset: { x: 198, y: 530, w: 130, h: 42, radius: 18 },
-                save: { x: 355, y: 530, w: 130, h: 42, radius: 18 },
-                back: { x: 512, y: 530, w: 130, h: 42, radius: 18 }
+                reset: { x: display.x + Math.max(20, (display.w - actionGroupWidth) / 2), y: display.y + display.h - 46, w: 130, h: 42, radius: 18 },
+                save: { x: display.x + Math.max(20, (display.w - actionGroupWidth) / 2) + 157, y: display.y + display.h - 46, w: 130, h: 42, radius: 18 },
+                back: { x: display.x + Math.max(20, (display.w - actionGroupWidth) / 2) + 314, y: display.y + display.h - 46, w: 130, h: 42, radius: 18 }
             }
         };
     }
@@ -288,8 +316,9 @@ class ControlsConfigUI {
         const isJoystick = this.panelTarget && this.panelTarget.type === 'joystick';
         const w = 360;
         const h = isJoystick ? 250 : 210;
-        const x = CANVAS_W / 2 - w / 2;
-        const y = CANVAS_H / 2 - h / 2;
+        const display = this._getDisplayBounds();
+        const x = display.x + (display.w - w) / 2;
+        const y = display.y + (display.h - h) / 2;
         const trackX = x + 32;
         const trackW = w - 64;
         const sizeSliderY = y + 104;
@@ -470,13 +499,20 @@ class ControlsConfigUI {
     }
 
     _drawModeButton(ctx, rect, text, selected, accentColor) {
+        const fillColor = selected
+            ? colorWithAlpha(accentColor, Theme.current === 'dark' ? 0.38 : 0.34)
+            : (Theme.current === 'dark' ? 'rgba(48,48,48,0.96)' : 'rgba(223,216,201,0.98)');
+        const borderColor = selected
+            ? colorWithAlpha(accentColor, 0.82)
+            : (Theme.current === 'dark' ? 'rgba(255,255,255,0.26)' : 'rgba(0,0,0,0.28)');
+
         TouchUI.drawPanel(ctx, rect.x, rect.y, rect.w, rect.h, {
             radius: rect.radius,
-            fill: selected ? colorWithAlpha(accentColor, Theme.current === 'dark' ? 0.24 : 0.18) : TouchUI.surfaceSoftFill(1),
-            border: selected ? colorWithAlpha(accentColor, 0.52) : TouchUI.surfaceStroke(1),
+            fill: fillColor,
+            border: borderColor,
             inset: TouchUI.innerStroke(1),
             shadow: false,
-            glowColor: selected ? colorWithAlpha(accentColor, 0.2) : null,
+            glowColor: selected ? colorWithAlpha(accentColor, 0.28) : null,
             glowWidth: 2
         });
 
@@ -484,7 +520,7 @@ class ControlsConfigUI {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = Theme.colors.text.primary;
-        ctx.font = selected ? 'bold 15px monospace' : '14px monospace';
+        ctx.font = selected ? 'bold 15px monospace' : 'bold 14px monospace';
         ctx.fillText(text, rect.x + rect.w / 2, rect.y + rect.h / 2);
         ctx.restore();
     }
@@ -512,8 +548,19 @@ class ControlsConfigUI {
         ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
         ctx.restore();
 
-        TouchUI.drawPill(ctx, bounds.x + 20, bounds.y + 16, 118, 26, t('previewArea'), {
+        this._drawViewportFrame(ctx, bounds);
+
+        TouchUI.drawPill(ctx, bounds.x + 20, bounds.y + 16, 118, 26, t('actualArea'), {
             accentColor: Theme.colors.tanks[0],
+            textColor: Theme.colors.text.primary,
+            fillOpacity: 0.12,
+            borderOpacity: 0.3
+        });
+
+        const scale = this._getDisplayScale();
+        const scaleLabel = Math.abs(scale - 1) < 0.01 ? '1:1' : `${scale.toFixed(2)}x`;
+        TouchUI.drawPill(ctx, bounds.x + bounds.w - 100, bounds.y + 16, 80, 26, scaleLabel, {
+            accentColor: Theme.colors.tanks[1],
             textColor: Theme.colors.text.primary,
             fillOpacity: 0.12,
             borderOpacity: 0.3
@@ -940,6 +987,16 @@ class ControlsConfigUI {
 
     _plainLabel(text) {
         return text.replace(/\[/g, '').replace(/\]/g, '').trim();
+    }
+
+    _drawViewportFrame(ctx, bounds) {
+        ctx.save();
+        ctx.strokeStyle = colorWithAlpha(Theme.colors.tanks[0], 0.3);
+        ctx.lineWidth = 2;
+        ctx.setLineDash([10, 8]);
+        ctx.strokeRect(bounds.x + 1, bounds.y + 1, bounds.w - 2, bounds.h - 2);
+        ctx.setLineDash([]);
+        ctx.restore();
     }
 
     _isInRect(x, y, rect) {

@@ -50,12 +50,13 @@ const I18N_DICT = {
 
     // 控制器配置
     controlsTitle: { zh: '控制器设置', en: 'CONTROLS CONFIG' },
-    controlsSubtitle: { zh: '自定义触摸控制器的位置和大小', en: 'Customize touch controls position and size' },
+    controlsSubtitle: { zh: '按实际大小和位置调整触摸控制器', en: 'Adjust touch controls at their real size and position' },
     singleMode:   { zh: '单人模式', en: 'Single Player' },
     dualMode:     { zh: '双人模式', en: 'Dual Player' },
     player1:      { zh: '玩家1', en: 'Player 1' },
     player2:      { zh: '玩家2', en: 'Player 2' },
     previewArea:  { zh: '预览区域', en: 'Preview Area' },
+    actualArea:   { zh: '实际区域', en: 'Actual Area' },
     dragHint:     { zh: '长按拖动调整位置', en: 'Long press to drag' },
     tapHint:      { zh: '点击显示参数设置', en: 'Tap to adjust params' },
     tapToOpenPanel: { zh: '点击控制器打开参数面板', en: 'Tap controller to open panel' },
