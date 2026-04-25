@@ -94,7 +94,6 @@ class InputManager {
 
 
         this._onDown = (e) => {
-            console.log('[INPUT] keydown:', e.code);
             this.keys.add(e.code);
             // 阻止游戏按键的默认行为
             if (e.code.startsWith('Arrow') || e.code === 'Space' || e.code.startsWith('Numpad')) {

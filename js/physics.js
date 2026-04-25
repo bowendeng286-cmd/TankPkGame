@@ -305,7 +305,7 @@ function segmentHitTank(segment, tank, expandRadius) {
     let tMax = 1;
 
     if (start.x >= -halfW && start.x <= halfW && start.y >= -halfH && start.y <= halfH) {
-        return { t: 0, x: segment.x1, y: segment.y1 };
+        return { t: 0, x: segment.x1, y: segment.y1, startInside: true };
     }
 
     if (Math.abs(dx) < 1e-10) {
@@ -332,7 +332,8 @@ function segmentHitTank(segment, tank, expandRadius) {
     return {
         t: tMin,
         x: lerp(segment.x1, segment.x2, tMin),
-        y: lerp(segment.y1, segment.y2, tMin)
+        y: lerp(segment.y1, segment.y2, tMin),
+        startInside: false
     };
 }
 
@@ -342,14 +343,24 @@ function laserHitTank(laserShot, tank) {
     const expandRadius = (laserShot.beamWidth || LASER_BEAM_WIDTH) / 2;
 
     let bestHit = null;
+    let bestSegmentIndex = -1;
     for (const segment of sweepSegments) {
         const hit = segmentHitTank(segment, tank, expandRadius);
         if (!hit) continue;
         if (!bestHit || hit.t < bestHit.t) {
             bestHit = hit;
+            bestSegmentIndex = sweepSegments.indexOf(segment);
         }
     }
-    return bestHit;
+    if (!bestHit) return null;
+    return {
+        hit: bestHit,
+        segment: bestSegmentIndex >= 0 ? sweepSegments[bestSegmentIndex] : null,
+        segmentIndex: bestSegmentIndex,
+        sweepSegments,
+        sweepSegmentCount: sweepSegments.length,
+        expandRadius
+    };
 }
 
 // ===== 硬约束位置修正（安全网，确保绝不穿墙） =====
