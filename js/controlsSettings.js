@@ -1,7 +1,7 @@
 // ===== Touch control settings =====
 class ControlsSettings {
     static STORAGE_KEY = 'tankgame_controls';
-    static VERSION = 3;
+    static VERSION = 4;
 
     static getDefault(surfaceWidth, surfaceHeight) {
         const width = this._resolveWidth(surfaceWidth);
@@ -49,7 +49,7 @@ class ControlsSettings {
                 return false;
             }
 
-            const stored = this._toStoredConfig(config, width, height);
+            const stored = this._toStoredConfig(config);
             localStorage.setItem(this.STORAGE_KEY, JSON.stringify(stored));
             return true;
         } catch (e) {
@@ -144,7 +144,7 @@ class ControlsSettings {
             }
         };
 
-        const stored = this._toStoredConfig(legacyRuntimeConfig, legacyWidth, legacyHeight);
+        const stored = this._toStoredConfig(legacyRuntimeConfig);
         return this._fromStoredConfig(
             stored,
             this._resolveWidth(surfaceWidth),
@@ -264,21 +264,21 @@ class ControlsSettings {
         };
     }
 
-    static _toStoredConfig(config, canvasWidth, canvasHeight) {
+    static _toStoredConfig(config) {
         return {
             version: this.VERSION,
             singlePlayer: {
-                joystick: this._encodeJoystick(config.singlePlayer.joystick, canvasWidth, canvasHeight),
-                fireButton: this._encodeFireButton(config.singlePlayer.fireButton, canvasWidth, canvasHeight)
+                joystick: this._encodeJoystick(config.singlePlayer.joystick),
+                fireButton: this._encodeFireButton(config.singlePlayer.fireButton)
             },
             dualPlayer: {
                 player1: {
-                    joystick: this._encodeJoystick(config.dualPlayer.player1.joystick, canvasWidth, canvasHeight),
-                    fireButton: this._encodeFireButton(config.dualPlayer.player1.fireButton, canvasWidth, canvasHeight)
+                    joystick: this._encodeJoystick(config.dualPlayer.player1.joystick),
+                    fireButton: this._encodeFireButton(config.dualPlayer.player1.fireButton)
                 },
                 player2: {
-                    joystick: this._encodeJoystick(config.dualPlayer.player2.joystick, canvasWidth, canvasHeight),
-                    fireButton: this._encodeFireButton(config.dualPlayer.player2.fireButton, canvasWidth, canvasHeight)
+                    joystick: this._encodeJoystick(config.dualPlayer.player2.joystick),
+                    fireButton: this._encodeFireButton(config.dualPlayer.player2.fireButton)
                 }
             }
         };
@@ -305,10 +305,10 @@ class ControlsSettings {
         };
     }
 
-    static _encodeJoystick(config, canvasWidth, canvasHeight) {
+    static _encodeJoystick(config) {
         return {
-            xRatio: this._toRatio(config.x, canvasWidth),
-            yRatio: this._toRatio(config.y, canvasHeight),
+            x: config.x,
+            y: config.y,
             outerRadius: config.outerRadius,
             innerRadius: config.innerRadius,
             maxDistance: config.maxDistance,
@@ -316,15 +316,26 @@ class ControlsSettings {
         };
     }
 
-    static _encodeFireButton(config, canvasWidth, canvasHeight) {
+    static _encodeFireButton(config) {
         return {
-            xRatio: this._toRatio(config.x, canvasWidth),
-            yRatio: this._toRatio(config.y, canvasHeight),
+            x: config.x,
+            y: config.y,
             radius: config.radius
         };
     }
 
     static _decodeJoystick(config, fallback, canvasWidth, canvasHeight) {
+        if (config && Number.isFinite(config.x) && Number.isFinite(config.y)) {
+            return {
+                x: this._coerceNumber(config.x, fallback.x),
+                y: this._coerceNumber(config.y, fallback.y),
+                outerRadius: this._coerceNumber(config.outerRadius, fallback.outerRadius),
+                innerRadius: this._coerceNumber(config.innerRadius, fallback.innerRadius),
+                maxDistance: this._coerceNumber(config.maxDistance, fallback.maxDistance),
+                deadZone: this._coerceNumber(config.deadZone, fallback.deadZone),
+            };
+        }
+
         return {
             x: this._fromRatio(config ? config.xRatio : null, canvasWidth, fallback.x),
             y: this._fromRatio(config ? config.yRatio : null, canvasHeight, fallback.y),
@@ -336,6 +347,14 @@ class ControlsSettings {
     }
 
     static _decodeFireButton(config, fallback, canvasWidth, canvasHeight) {
+        if (config && Number.isFinite(config.x) && Number.isFinite(config.y)) {
+            return {
+                x: this._coerceNumber(config.x, fallback.x),
+                y: this._coerceNumber(config.y, fallback.y),
+                radius: this._coerceNumber(config.radius, fallback.radius),
+            };
+        }
+
         return {
             x: this._fromRatio(config ? config.xRatio : null, canvasWidth, fallback.x),
             y: this._fromRatio(config ? config.yRatio : null, canvasHeight, fallback.y),

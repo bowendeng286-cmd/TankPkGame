@@ -4,15 +4,17 @@ const ctx = canvas.getContext('2d');
 // 全屏Canvas + 游戏区域居中
 function fitCanvas() {
     // Canvas物理尺寸 = 窗口尺寸
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const targetWidth = controlsConfigCanvasLock ? controlsConfigCanvasLock.width : window.innerWidth;
+    const targetHeight = controlsConfigCanvasLock ? controlsConfigCanvasLock.height : window.innerHeight;
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
     
     // 计算游戏区域缩放和偏移（保持宽高比，居中显示）
-    const scaleX = window.innerWidth / CANVAS_W;
-    const scaleY = window.innerHeight / CANVAS_H;
+    const scaleX = targetWidth / CANVAS_W;
+    const scaleY = targetHeight / CANVAS_H;
     VIEWPORT_SCALE = Math.min(scaleX, scaleY);
-    VIEWPORT_OFFSET_X = (window.innerWidth - CANVAS_W * VIEWPORT_SCALE) / 2;
-    VIEWPORT_OFFSET_Y = (window.innerHeight - CANVAS_H * VIEWPORT_SCALE) / 2;
+    VIEWPORT_OFFSET_X = (targetWidth - CANVAS_W * VIEWPORT_SCALE) / 2;
+    VIEWPORT_OFFSET_Y = (targetHeight - CANVAS_H * VIEWPORT_SCALE) / 2;
     
     // 更新触摸控制器布局（如果已初始化）
     if (typeof input !== 'undefined' && input && input.touchEnabled && config) {
@@ -40,6 +42,7 @@ var laserShots = [];
 var aiControllers = [];
 var muzzleFlashes = []; // {x, y, timer}
 var config = null;
+var controlsConfigCanvasLock = null;
 var pickupSpawnTimer = 0;
 var roundElapsed = 0;
 var nextPickupId = 1;
@@ -634,6 +637,8 @@ function gameLoop(timestamp) {
             menu.draw(ctx);
             if (menu.openControlsConfig) {
                 gameState.transitionTo(STATE.CONTROLS_CONFIG);
+                controlsConfigCanvasLock = { width: canvas.width, height: canvas.height };
+                fitCanvas();
                 controlsConfigUI.activate(input);
                 menu.openControlsConfig = false;
             }
@@ -647,6 +652,8 @@ function gameLoop(timestamp) {
             controlsConfigUI.draw(ctx);
             if (controlsConfigUI.done) {
                 controlsConfigUI.deactivate();
+                controlsConfigCanvasLock = null;
+                fitCanvas();
                 // 如果保存了配置，重新加载到 input
                 if (controlsConfigUI.saved && config) {
                     input.updateLayout(config.humanCount);

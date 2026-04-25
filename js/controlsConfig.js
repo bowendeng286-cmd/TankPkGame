@@ -84,7 +84,7 @@ class ControlsConfigUI {
         e.preventDefault();
         if (e.touches.length !== 1) return;
 
-        const pos = this._input._touchToCanvasCoords(e.touches[0]);
+        const pos = this._input._touchToCanvasPixels(e.touches[0]);
 
         if (this.showPanel && this.panelTarget) {
             const slider = this._checkSliderHit(pos.x, pos.y);
@@ -112,9 +112,9 @@ class ControlsConfigUI {
             this.dragStartX = pos.x;
             this.dragStartY = pos.y;
 
-            const previewCfg = this._getPreviewControllerConfig(controller, this._getLayout().preview);
-            this.dragOffsetX = pos.x - previewCfg.x;
-            this.dragOffsetY = pos.y - previewCfg.y;
+            const cfg = this._getControllerConfig(controller);
+            this.dragOffsetX = pos.x - cfg.x;
+            this.dragOffsetY = pos.y - cfg.y;
             this.longPressTimer = 0.3;
             this.isDragging = false;
             return;
@@ -127,7 +127,7 @@ class ControlsConfigUI {
         e.preventDefault();
         if (e.touches.length !== 1) return;
 
-        const pos = this._input._touchToCanvasCoords(e.touches[0]);
+        const pos = this._input._touchToCanvasPixels(e.touches[0]);
 
         if (this.panelSlider && this.panelSlider.dragging) {
             this._updateSlider(pos.x);
@@ -135,14 +135,12 @@ class ControlsConfigUI {
         }
 
         if (this.isDragging && this.dragTarget) {
-            const bounds = this._getLayout().preview;
             const surface = this._getSurfaceSize();
             const cfg = this._getControllerConfig(this.dragTarget);
             const radius = this.dragTarget.type === 'joystick' ? cfg.outerRadius : cfg.radius;
-            const mappedPos = this._previewToSurfacePoint(pos.x - this.dragOffsetX, pos.y - this.dragOffsetY, bounds);
             const clamped = ControlsSettings.clampPosition(
-                mappedPos.x,
-                mappedPos.y,
+                pos.x - this.dragOffsetX,
+                pos.y - this.dragOffsetY,
                 radius,
                 surface.width,
                 surface.height
@@ -217,97 +215,30 @@ class ControlsConfigUI {
         };
     }
 
-    _getDisplayScale() {
-        if (!this._input || !this._input._canvas) return 1;
-
-        const surface = this._getSurfaceSize();
-        if (!surface.width || !surface.height) return 1;
-
-        const scaleX = this._input._canvas.width / surface.width;
-        const scaleY = this._input._canvas.height / surface.height;
-        return Math.min(scaleX, scaleY, 1);
-    }
-
-    _getDisplayBounds() {
-        const surface = this._getSurfaceSize();
-        const scale = this._getDisplayScale();
-        const w = surface.width * scale;
-        const h = surface.height * scale;
-
-        return {
-            x: (CANVAS_W - w) / 2,
-            y: (CANVAS_H - h) / 2,
-            w,
-            h,
-            scale
-        };
-    }
-
-    _surfaceToPreviewPoint(x, y, bounds) {
+    _getCanvasSize() {
         const surface = this._getSurfaceSize();
         return {
-            x: bounds.x + (x / surface.width) * bounds.w,
-            y: bounds.y + (y / surface.height) * bounds.h
+            width: surface.width || CANVAS_W,
+            height: surface.height || CANVAS_H
         };
-    }
-
-    _previewToSurfacePoint(x, y, bounds) {
-        const surface = this._getSurfaceSize();
-        return {
-            x: ((x - bounds.x) / bounds.w) * surface.width,
-            y: ((y - bounds.y) / bounds.h) * surface.height
-        };
-    }
-
-    _surfaceToPreviewRadius(radius, bounds) {
-        const surface = this._getSurfaceSize();
-        return radius * Math.min(bounds.w / surface.width, bounds.h / surface.height);
-    }
-
-    _projectJoystickToPreview(config, bounds) {
-        const point = this._surfaceToPreviewPoint(config.x, config.y, bounds);
-        const scale = this._surfaceToPreviewRadius(1, bounds);
-        return {
-            x: point.x,
-            y: point.y,
-            outerRadius: config.outerRadius * scale,
-            innerRadius: config.innerRadius * scale,
-            maxDistance: config.maxDistance * scale,
-            deadZone: config.deadZone * scale
-        };
-    }
-
-    _projectFireButtonToPreview(config, bounds) {
-        const point = this._surfaceToPreviewPoint(config.x, config.y, bounds);
-        return {
-            x: point.x,
-            y: point.y,
-            radius: this._surfaceToPreviewRadius(config.radius, bounds)
-        };
-    }
-
-    _getPreviewControllerConfig(target, bounds) {
-        const cfg = this._getControllerConfig(target);
-        return target.type === 'joystick'
-            ? this._projectJoystickToPreview(cfg, bounds)
-            : this._projectFireButtonToPreview(cfg, bounds);
     }
 
     _getLayout() {
-        const display = this._getDisplayBounds();
-        const panelWidth = Math.min(Math.max(460, display.w - 292), display.w - 40);
+        const canvas = this._getCanvasSize();
+        const width = canvas.width;
+        const height = canvas.height;
+        const panelWidth = Math.min(Math.max(460, width - 292), width - 40);
         const actionGroupWidth = 444;
         return {
             modeButtons: {
-                single: { x: display.x + 20, y: display.y + 20, w: 136, h: 42, radius: 18 },
-                dual: { x: display.x + 20 + 152, y: display.y + 20, w: 136, h: 42, radius: 18 }
+                single: { x: 20, y: 20, w: 136, h: 42, radius: 18 },
+                dual: { x: 172, y: 20, w: 136, h: 42, radius: 18 }
             },
-            preview: { x: display.x, y: display.y, w: display.w, h: display.h, radius: 30 },
-            guide: { x: display.x + Math.max(20, (display.w - panelWidth) / 2), y: display.y + display.h - 82, w: panelWidth, h: 68, radius: 20 },
+            guide: { x: Math.max(20, (width - panelWidth) / 2), y: height - 82, w: panelWidth, h: 68, radius: 20 },
             actions: {
-                reset: { x: display.x + Math.max(20, (display.w - actionGroupWidth) / 2), y: display.y + display.h - 46, w: 130, h: 42, radius: 18 },
-                save: { x: display.x + Math.max(20, (display.w - actionGroupWidth) / 2) + 157, y: display.y + display.h - 46, w: 130, h: 42, radius: 18 },
-                back: { x: display.x + Math.max(20, (display.w - actionGroupWidth) / 2) + 314, y: display.y + display.h - 46, w: 130, h: 42, radius: 18 }
+                reset: { x: Math.max(20, (width - actionGroupWidth) / 2), y: height - 46, w: 130, h: 42, radius: 18 },
+                save: { x: Math.max(20, (width - actionGroupWidth) / 2) + 157, y: height - 46, w: 130, h: 42, radius: 18 },
+                back: { x: Math.max(20, (width - actionGroupWidth) / 2) + 314, y: height - 46, w: 130, h: 42, radius: 18 }
             }
         };
     }
@@ -316,9 +247,9 @@ class ControlsConfigUI {
         const isJoystick = this.panelTarget && this.panelTarget.type === 'joystick';
         const w = 360;
         const h = isJoystick ? 250 : 210;
-        const display = this._getDisplayBounds();
-        const x = display.x + (display.w - w) / 2;
-        const y = display.y + (display.h - h) / 2;
+        const canvas = this._getCanvasSize();
+        const x = (canvas.width - w) / 2;
+        const y = (canvas.height - h) / 2;
         const trackX = x + 32;
         const trackW = w - 64;
         const sizeSliderY = y + 104;
@@ -433,12 +364,11 @@ class ControlsConfigUI {
 
     _getControllerAt(x, y) {
         const cfg = this.mode === 'single' ? this.tempConfig.singlePlayer : this.tempConfig.dualPlayer;
-        const bounds = this._getLayout().preview;
         const hitPadding = 24;
 
         if (this.mode === 'single') {
-            const joystick = this._projectJoystickToPreview(cfg.joystick, bounds);
-            const fireButton = this._projectFireButtonToPreview(cfg.fireButton, bounds);
+            const joystick = cfg.joystick;
+            const fireButton = cfg.fireButton;
             if (vecDist(vec2(x, y), vec2(joystick.x, joystick.y)) <= joystick.outerRadius + hitPadding) {
                 return { type: 'joystick', player: 0 };
             }
@@ -450,8 +380,8 @@ class ControlsConfigUI {
 
         for (let player = 0; player < 2; player++) {
             const playerCfg = player === 0 ? cfg.player1 : cfg.player2;
-            const joystick = this._projectJoystickToPreview(playerCfg.joystick, bounds);
-            const fireButton = this._projectFireButtonToPreview(playerCfg.fireButton, bounds);
+            const joystick = playerCfg.joystick;
+            const fireButton = playerCfg.fireButton;
             if (vecDist(vec2(x, y), vec2(joystick.x, joystick.y)) <= joystick.outerRadius + hitPadding) {
                 return { type: 'joystick', player };
             }
@@ -479,17 +409,16 @@ class ControlsConfigUI {
         ctx.save();
         ctx.fillStyle = Theme.colors.bg;
         ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-        ctx.translate(VIEWPORT_OFFSET_X, VIEWPORT_OFFSET_Y);
-        ctx.scale(VIEWPORT_SCALE, VIEWPORT_SCALE);
 
         TouchUI.drawTitle(ctx, t('controlsTitle'), t('controlsSubtitle'), Theme.colors.tanks[0], 36);
         this._drawModeButton(ctx, layout.modeButtons.single, t('singleMode'), this.mode === 'single', Theme.colors.tanks[0]);
         this._drawModeButton(ctx, layout.modeButtons.dual, t('dualMode'), this.mode === 'dual', Theme.colors.tanks[1]);
-        this._drawPreview(ctx, layout.preview);
         this._drawGuideBox(ctx, layout.guide);
         this._drawActionButton(ctx, layout.actions.reset, t('resetDefault'), 'reset');
         this._drawActionButton(ctx, layout.actions.save, t('save'), 'save');
         this._drawActionButton(ctx, layout.actions.back, t('back'), 'back');
+
+        this._drawControllers(ctx);
 
         if (this.showPanel && this.panelTarget) {
             this._drawPanel(ctx);
@@ -525,94 +454,40 @@ class ControlsConfigUI {
         ctx.restore();
     }
 
-    _drawPreview(ctx, bounds) {
-        TouchUI.drawPanel(ctx, bounds.x, bounds.y, bounds.w, bounds.h, {
-            radius: bounds.radius,
-            fill: TouchUI.surfaceFill(0.98),
-            border: colorWithAlpha(Theme.colors.tanks[0], 0.22),
-            inset: TouchUI.innerStroke(1),
-            shadowBlur: 24,
-            shadowOffsetY: 8
-        });
-
-        ctx.save();
-        roundedRectPath(ctx, bounds.x, bounds.y, bounds.w, bounds.h, bounds.radius);
-        ctx.clip();
-        TouchUI.drawDottedGrid(ctx, bounds.x, bounds.y, bounds.w, bounds.h, { alpha: 0.12 });
-
-        const wash = ctx.createLinearGradient(bounds.x, bounds.y, bounds.x, bounds.y + bounds.h);
-        wash.addColorStop(0, colorWithAlpha(Theme.colors.tanks[0], 0.08));
-        wash.addColorStop(0.4, colorWithAlpha(Theme.colors.tanks[1], 0.04));
-        wash.addColorStop(1, colorWithAlpha(Theme.colors.tanks[0], 0));
-        ctx.fillStyle = wash;
-        ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
-        ctx.restore();
-
-        this._drawViewportFrame(ctx, bounds);
-
-        TouchUI.drawPill(ctx, bounds.x + 20, bounds.y + 16, 118, 26, t('actualArea'), {
-            accentColor: Theme.colors.tanks[0],
-            textColor: Theme.colors.text.primary,
-            fillOpacity: 0.12,
-            borderOpacity: 0.3
-        });
-
-        const scale = this._getDisplayScale();
-        const scaleLabel = Math.abs(scale - 1) < 0.01 ? '1:1' : `${scale.toFixed(2)}x`;
-        TouchUI.drawPill(ctx, bounds.x + bounds.w - 100, bounds.y + 16, 80, 26, scaleLabel, {
-            accentColor: Theme.colors.tanks[1],
-            textColor: Theme.colors.text.primary,
-            fillOpacity: 0.12,
-            borderOpacity: 0.3
-        });
-
-        TouchUI.drawPill(ctx, bounds.x + bounds.w - 156, bounds.y + 16, 136, 26, t(this.mode === 'single' ? 'singleMode' : 'dualMode'), {
-            accentColor: this.mode === 'single' ? Theme.colors.tanks[0] : Theme.colors.tanks[1],
-            textColor: Theme.colors.text.primary,
-            fillOpacity: 0.12,
-            borderOpacity: 0.3
-        });
-
-        this._drawAlignmentGuides(ctx, bounds);
-        this._drawControllers(ctx, bounds);
-    }
-
-    _drawAlignmentGuides(ctx, bounds) {
+    _drawAlignmentGuides(ctx) {
         if (!(this.isDragging && this.dragTarget)) return;
 
-        const cfg = this._getPreviewControllerConfig(this.dragTarget, bounds);
+        const cfg = this._getControllerConfig(this.dragTarget);
         const accent = TouchUI.playerColor(this.dragTarget.player);
+        const canvas = ctx.canvas;
 
         ctx.save();
-        roundedRectPath(ctx, bounds.x, bounds.y, bounds.w, bounds.h, bounds.radius);
-        ctx.clip();
         ctx.strokeStyle = colorWithAlpha(accent, 0.45);
         ctx.lineWidth = 1.5;
         ctx.setLineDash([8, 8]);
         ctx.beginPath();
-        ctx.moveTo(bounds.x, cfg.y);
-        ctx.lineTo(bounds.x + bounds.w, cfg.y);
-        ctx.moveTo(cfg.x, bounds.y);
-        ctx.lineTo(cfg.x, bounds.y + bounds.h);
+        ctx.moveTo(0, cfg.y);
+        ctx.lineTo(canvas.width, cfg.y);
+        ctx.moveTo(cfg.x, 0);
+        ctx.lineTo(cfg.x, canvas.height);
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.restore();
     }
 
-    _drawControllers(ctx, bounds) {
+    _drawControllers(ctx) {
         const cfg = this.mode === 'single' ? this.tempConfig.singlePlayer : this.tempConfig.dualPlayer;
-        const previewBounds = bounds || this._getLayout().preview;
 
         if (this.mode === 'single') {
-            this._drawJoystick(ctx, this._projectJoystickToPreview(cfg.joystick, previewBounds), 0);
-            this._drawFireButton(ctx, this._projectFireButtonToPreview(cfg.fireButton, previewBounds), 0);
+            this._drawJoystick(ctx, cfg.joystick, 0);
+            this._drawFireButton(ctx, cfg.fireButton, 0);
             return;
         }
 
-        this._drawJoystick(ctx, this._projectJoystickToPreview(cfg.player1.joystick, previewBounds), 0);
-        this._drawFireButton(ctx, this._projectFireButtonToPreview(cfg.player1.fireButton, previewBounds), 0);
-        this._drawJoystick(ctx, this._projectJoystickToPreview(cfg.player2.joystick, previewBounds), 1);
-        this._drawFireButton(ctx, this._projectFireButtonToPreview(cfg.player2.fireButton, previewBounds), 1);
+        this._drawJoystick(ctx, cfg.player1.joystick, 0);
+        this._drawFireButton(ctx, cfg.player1.fireButton, 0);
+        this._drawJoystick(ctx, cfg.player2.joystick, 1);
+        this._drawFireButton(ctx, cfg.player2.fireButton, 1);
     }
 
     _drawJoystick(ctx, config, playerIndex) {
@@ -839,7 +714,7 @@ class ControlsConfigUI {
 
         ctx.save();
         ctx.fillStyle = 'rgba(0,0,0,0.46)';
-        ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
         ctx.restore();
 
         TouchUI.drawPanel(ctx, panel.x, panel.y, panel.w, panel.h, {
@@ -987,16 +862,6 @@ class ControlsConfigUI {
 
     _plainLabel(text) {
         return text.replace(/\[/g, '').replace(/\]/g, '').trim();
-    }
-
-    _drawViewportFrame(ctx, bounds) {
-        ctx.save();
-        ctx.strokeStyle = colorWithAlpha(Theme.colors.tanks[0], 0.3);
-        ctx.lineWidth = 2;
-        ctx.setLineDash([10, 8]);
-        ctx.strokeRect(bounds.x + 1, bounds.y + 1, bounds.w - 2, bounds.h - 2);
-        ctx.setLineDash([]);
-        ctx.restore();
     }
 
     _isInRect(x, y, rect) {
