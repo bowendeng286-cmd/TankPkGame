@@ -543,3 +543,21 @@ gameX = (canvasX - VIEWPORT_OFFSET_X) / VIEWPORT_SCALE
 - 后续注意事项：
   - 以后每轮任务真正结束后，除了补开发记录，还要记得同步把状态写成“任务已完成，用户已确认”。
   - 如果后续再调整记录模板，要检查状态文本是否仍然和这条强制规则一致。
+
+### [2026-04-25 10:43] 修复任务完成通知 skill 缺失问题
+- 工作分支：`codex/fix-task-complete-notify-skill`
+- 本轮开发内容：
+  - 补齐了仓库中缺失的 `.agents/skills/task-complete-notify/` 目录，新增 `SKILL.md` 和 `task-complete-notify.ps1`，让完成通知 skill 不再只存在于工具声明里而没有实际文件。
+  - 在 `SKILL.md` 中明确了使用场景和调用方式，约定在真正完成实现、修复或编辑任务后，先运行 PowerShell 脚本，再发送最终回复。
+  - 在 `task-complete-notify.ps1` 中实现了 3 声提示音和 Windows 弹窗，弹窗内容支持通过 `-Message` 参数传入本轮完成事项。
+  - 本轮修改文件为 `.agents/skills/task-complete-notify/SKILL.md`、`.agents/skills/task-complete-notify/task-complete-notify.ps1` 和 `AGENTS.md`。
+- 当前进度：任务已完成，用户已确认
+- 编码坑点：
+  - 这次问题不是脚本内容本身报错，而是 skill 对应的目录和 `SKILL.md` 根本不在仓库里，导致工具在加载阶段就直接找不到路径。后续如果某个 skill 调用失败，不能只盯着脚本语法，还要先确认技能目录、入口文件名和实际路径是否真的存在。
+  - 通知脚本运行在 Windows PowerShell 下时，直接用 `MessageBox` 前需要先加载 `System.Windows.Forms`，否则弹窗类型不可用。后续如果继续扩展通知方式，优先保持依赖简单，避免引入额外模块。
+- 沟通坑点：
+  - 用户这次明确说明“他就是一个 powershell 脚本”，真实需求边界很清楚：重点是把现有 skill 修成“可弹窗、可响铃、可带完成内容”的最小可用版本，而不是设计一套复杂通知系统。
+  - 如果后续用户再说“修一下某个 skill”，不能默认问题一定出在脚本逻辑里；也可能像这次一样，是仓库里缺少对应目录或入口文件，属于资源缺失而不是脚本实现错误。
+- 后续注意事项：
+  - 后续真正完成实现任务并准备发送最终回复前，应优先调用这个 skill 或直接运行其 PowerShell 脚本，确认提示音和弹窗都能出现。
+  - 如果以后想改通知样式，优先继续沿用 `-Message` 传参方式，避免把完成内容写死在脚本里。
