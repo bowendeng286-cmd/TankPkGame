@@ -353,6 +353,7 @@ function laserHitTank(laserShot, tank) {
         }
     }
     if (!bestHit) return null;
+    if (tank.id === laserShot.ownerId && bestSegmentIndex === 0) return null;
     return {
         hit: bestHit,
         segment: bestSegmentIndex >= 0 ? sweepSegments[bestSegmentIndex] : null,

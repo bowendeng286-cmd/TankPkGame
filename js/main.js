@@ -521,11 +521,8 @@ function updateGame(dt) {
         if (!shot.alive) continue;
         for (const t of tanks) {
             if (!t.alive) continue;
-            if (shot.ownerId === t.id && shot.bounceCount === 0) {
-                continue;
-            }
-            const hit = laserHitTank(shot, t);
-            if (!hit) continue;
+            const hitInfo = laserHitTank(shot, t);
+            if (!hitInfo) continue;
             t.kill();
             particles.emit(t.x, t.y, t.color);
             renderer.shake(1);
