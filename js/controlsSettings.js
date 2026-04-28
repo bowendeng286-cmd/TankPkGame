@@ -40,9 +40,6 @@ class ControlsSettings {
     }
 
     static save(config, surfaceWidth, surfaceHeight) {
-        const width = this._resolveWidth(surfaceWidth);
-        const height = this._resolveHeight(surfaceHeight);
-
         try {
             if (!this.validate(config)) {
                 console.warn('[ControlsSettings] Refusing to save invalid config');

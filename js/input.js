@@ -37,10 +37,7 @@ class InputManager {
         }
         
         this.touchEnabled = this.isTouchDevice;
-        
-        // 输出检测结果（便于调试）
-        console.log('[INPUT] Device detection - isTouchDevice:', this.isTouchDevice, '| UA:', isMobileUA ? 'Mobile' : (isDesktopUA ? 'Desktop' : 'Unknown'));
-        
+
         // 屏幕点击状态（用于游戏结束等场景）
         this.screenTapped = false;
 

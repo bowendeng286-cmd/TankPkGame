@@ -35,17 +35,6 @@ function closestPointOnSegment(p, a, b) {
     return vecAdd(a, vecScale(ab, t));
 }
 
-// 射线-线段交点 (返回 t 参数, -1 表示无交点)
-function raySegmentIntersect(origin, dir, a, b) {
-    const d = vecSub(b, a);
-    const denom = dir.x * d.y - dir.y * d.x;
-    if (Math.abs(denom) < 1e-10) return -1;
-    const t = ((a.x - origin.x) * d.y - (a.y - origin.y) * d.x) / denom;
-    const u = ((a.x - origin.x) * dir.y - (a.y - origin.y) * dir.x) / denom;
-    if (t >= 0 && u >= 0 && u <= 1) return t;
-    return -1;
-}
-
 // ===== RNG =====
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function randFloat(min, max) { return Math.random() * (max - min) + min; }

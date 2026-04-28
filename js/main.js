@@ -44,7 +44,6 @@ var muzzleFlashes = []; // {x, y, timer}
 var config = null;
 var controlsConfigCanvasLock = null;
 var pickupSpawnTimer = 0;
-var roundElapsed = 0;
 var nextPickupId = 1;
 var pendingVictoryTimer = null; // 胜利缓冲倒计时（null=未激活）
 var pendingWinnerId = -1;       // 缓冲期触发时最后存活坦克ID（-1=无人存活）
@@ -139,7 +138,6 @@ function attemptPickupSpawn() {
 }
 
 function updatePickups(dt) {
-    roundElapsed += dt;
     pickupSpawnTimer -= dt;
     while (pickupSpawnTimer <= 0) {
         attemptPickupSpawn();
@@ -185,7 +183,6 @@ function startRound() {
     pendingVictoryTimer = null;
     pendingWinnerId = -1;
     pickupSpawnTimer = PICKUP_FIRST_SPAWN_DELAY;
-    roundElapsed = 0;
     // 生成重生点（间距≥3格）
     const spawns = _generateSpawns(tanks.length);
     tanks.forEach((t, i) => {
