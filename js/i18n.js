@@ -46,6 +46,10 @@ const I18N_DICT = {
     keyboard_wasd: { zh: 'WASD + 空格', en: 'WASD + Space' },
     mouse:        { zh: '鼠标', en: 'Mouse' },
     controlsConfig: { zh: '控制器设置', en: 'Controls Config' },
+    switchToDesktopUi: { zh: '切换到电脑界面', en: 'Switch to Desktop UI' },
+    switchToTouchUi: { zh: '切换到手机操作界面', en: 'Switch to Touch UI' },
+    switchToDesktopUiHint: { zh: '桌面菜单与键鼠操作', en: 'Desktop menu and keyboard/mouse' },
+    switchToTouchUiHint: { zh: '触摸菜单与虚拟按键', en: 'Touch menu and virtual controls' },
     back:         { zh: '[ 返  回 ]', en: '[ BACK ]' },
 
     // 控制器配置

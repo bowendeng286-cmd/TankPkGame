@@ -1,3 +1,5 @@
+const UI_MODE_STORAGE_KEY = 'tankgame_ui_mode';
+
 class InputManager {
     constructor() {
         this.keys = new Set();
@@ -7,9 +9,10 @@ class InputManager {
         this.mouseDown = false;
         this._canvas = null;
 
-        // 触摸控制状态 - 改进的设备检测逻辑
+        // 触摸控制状态 - 设备能力与界面模式分离
         const hasOntouchstart = 'ontouchstart' in window;
         const hasMaxTouchPoints = navigator.maxTouchPoints > 0;
+        const isTouchCapable = hasOntouchstart || hasMaxTouchPoints;
         
         // 用户代理检测（最可靠的方法）
         const ua = navigator.userAgent.toLowerCase();
@@ -18,25 +21,33 @@ class InputManager {
         // 屏幕尺寸检测（移动设备通常宽度较小）
         const isMobileScreen = window.innerWidth <= 768;
         
-        // 检测是否为桌面浏览器（即使支持触摸）
+        // 检测是否为桌面浏览器
         const isDesktopUA = /windows nt|macintosh|linux x86_64/i.test(ua) && !isMobileUA;
-        
-        // 设备检测逻辑：
-        // 1. User Agent 明确表明是移动设备 → 触摸设备
-        // 2. User Agent 明确表明是桌面系统 → 非触摸设备（即使有触摸API）
-        // 3. 小屏幕 + 有触摸支持 → 触摸设备
-        // 4. 默认 → 非触摸设备
+
+        this.isTouchCapable = isTouchCapable;
+        this.isMobileDevice = isMobileUA || (!isDesktopUA && isMobileScreen && isTouchCapable);
+        this.isDesktopLike = isDesktopUA;
+
         if (isMobileUA) {
-            this.isTouchDevice = true;
+            this.deviceProfile = 'mobile';
+        } else if (isDesktopUA && isTouchCapable) {
+            this.deviceProfile = 'touch-desktop';
         } else if (isDesktopUA) {
-            this.isTouchDevice = false;
-        } else if (isMobileScreen && (hasOntouchstart || hasMaxTouchPoints)) {
-            this.isTouchDevice = true;
+            this.deviceProfile = 'desktop';
+        } else if (isMobileScreen && isTouchCapable) {
+            this.deviceProfile = 'mobile';
+        } else if (isTouchCapable) {
+            this.deviceProfile = 'touch-desktop';
         } else {
-            this.isTouchDevice = false;
+            this.deviceProfile = 'desktop';
         }
-        
+
+        this.canUseTouchUi = this.deviceProfile === 'mobile' || this.deviceProfile === 'touch-desktop';
+        this.canSwitchUiMode = this.deviceProfile === 'touch-desktop';
+        this.uiMode = this._resolveInitialUiMode();
+        this.isTouchDevice = this.uiMode === 'touch';
         this.touchEnabled = this.isTouchDevice;
+        this._touchEventsBound = false;
 
         // 屏幕点击状态（用于游戏结束等场景）
         this.screenTapped = false;
@@ -114,6 +125,74 @@ class InputManager {
         this._onTouchCancel = (e) => { this._handleTouchEnd(e); };
     }
 
+    _resolveInitialUiMode() {
+        if (this.deviceProfile === 'mobile') return 'touch';
+        if (this.deviceProfile === 'desktop') return 'desktop';
+
+        try {
+            const saved = localStorage.getItem(UI_MODE_STORAGE_KEY);
+            if (saved === 'touch' || saved === 'desktop') {
+                return saved;
+            }
+        } catch (e) {
+            console.warn('[InputManager] Failed to load UI mode:', e);
+        }
+
+        return 'touch';
+    }
+
+    _saveUiMode(mode) {
+        if (!this.canSwitchUiMode) return;
+        try {
+            localStorage.setItem(UI_MODE_STORAGE_KEY, mode);
+        } catch (e) {
+            console.warn('[InputManager] Failed to save UI mode:', e);
+        }
+    }
+
+    _bindTouchEvents() {
+        if (!this._canvas || this._touchEventsBound) return;
+        this._canvas.addEventListener('touchstart', this._onTouchStart, { passive: false });
+        this._canvas.addEventListener('touchmove', this._onTouchMove, { passive: false });
+        this._canvas.addEventListener('touchend', this._onTouchEnd, { passive: false });
+        this._canvas.addEventListener('touchcancel', this._onTouchCancel, { passive: false });
+        this._touchEventsBound = true;
+    }
+
+    _unbindTouchEvents() {
+        if (!this._canvas || !this._touchEventsBound) return;
+        this._canvas.removeEventListener('touchstart', this._onTouchStart);
+        this._canvas.removeEventListener('touchmove', this._onTouchMove);
+        this._canvas.removeEventListener('touchend', this._onTouchEnd);
+        this._canvas.removeEventListener('touchcancel', this._onTouchCancel);
+        this._touchEventsBound = false;
+        this._resetTouchState();
+    }
+
+    refreshTouchBindings() {
+        if (this.touchEnabled) this._bindTouchEvents();
+        else this._unbindTouchEvents();
+    }
+
+    setUiMode(mode) {
+        let nextMode = mode === 'desktop' ? 'desktop' : 'touch';
+
+        if (this.deviceProfile === 'mobile') nextMode = 'touch';
+        if (this.deviceProfile === 'desktop') nextMode = 'desktop';
+
+        const changed = this.uiMode !== nextMode;
+        this.uiMode = nextMode;
+        this.isTouchDevice = this.uiMode === 'touch';
+        this.touchEnabled = this.isTouchDevice;
+
+        if (this.canSwitchUiMode) {
+            this._saveUiMode(this.uiMode);
+        }
+
+        this.refreshTouchBindings();
+        return changed;
+    }
+
     // 绑定 canvas 以启用鼠标和触摸坐标转换
     bindCanvas(cvs) {
         this._canvas = cvs;
@@ -122,13 +201,7 @@ class InputManager {
         cvs.addEventListener('mouseup', this._onMouseUp);
         cvs.addEventListener('contextmenu', this._onContextMenu);
 
-        // 绑定触摸事件
-        if (this.isTouchDevice) {
-            cvs.addEventListener('touchstart', this._onTouchStart, { passive: false });
-            cvs.addEventListener('touchmove', this._onTouchMove, { passive: false });
-            cvs.addEventListener('touchend', this._onTouchEnd, { passive: false });
-            cvs.addEventListener('touchcancel', this._onTouchCancel, { passive: false });
-        }
+        this.refreshTouchBindings();
     }
 
     // 根据玩家数量更新控制器布局
@@ -364,12 +437,7 @@ class InputManager {
         return false;
     }
     
-    reset() {
-        this.keys.clear();
-        this.mouseDown = false;
-        this.screenTapped = false;
-        
-        // 重置触摸状态
+    _resetTouchState() {
         for (let i = 0; i < 2; i++) {
             this.joysticks[i].active = false;
             this.joysticks[i].touchId = null;
@@ -383,6 +451,13 @@ class InputManager {
         }
     }
 
+    reset() {
+        this.keys.clear();
+        this.mouseDown = false;
+        this.screenTapped = false;
+        this._resetTouchState();
+    }
+
     destroy() {
         window.removeEventListener('keydown', this._onDown);
         window.removeEventListener('keyup', this._onUp);
@@ -391,14 +466,8 @@ class InputManager {
             this._canvas.removeEventListener('mousedown', this._onMouseDown);
             this._canvas.removeEventListener('mouseup', this._onMouseUp);
             this._canvas.removeEventListener('contextmenu', this._onContextMenu);
-            
-            // 移除触摸事件
-            if (this.isTouchDevice) {
-                this._canvas.removeEventListener('touchstart', this._onTouchStart);
-                this._canvas.removeEventListener('touchmove', this._onTouchMove);
-                this._canvas.removeEventListener('touchend', this._onTouchEnd);
-                this._canvas.removeEventListener('touchcancel', this._onTouchCancel);
-            }
+
+            this._unbindTouchEvents();
         }
     }
 }

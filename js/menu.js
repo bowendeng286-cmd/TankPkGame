@@ -7,7 +7,7 @@ var ALL_MODES = [
 ];
 
 function getAvailableModes(input) {
-    if (input && input.isTouchDevice) {
+    if (input && input.touchEnabled) {
         return ALL_MODES.filter((mode) => mode.players !== 3);
     }
     return ALL_MODES;
@@ -72,38 +72,58 @@ class Menu {
         this._input = input;
         this._prevKeys = new Set();
 
-        MODES = getAvailableModes(input);
-        if (this.modeIndex >= MODES.length) this.modeIndex = 0;
+        this._refreshAvailableModes();
 
         this.settingsMaxRow = this._getSettingsItems().length - 1;
-
-        if (input.isTouchDevice && input._canvas) {
-            this._onTouchEnd = (e) => {
-                if (typeof gameState !== 'undefined' &&
-                    gameState.current !== STATE.MENU &&
-                    gameState.current !== STATE.SETTINGS) {
-                    return;
-                }
-
-                e.preventDefault();
-                if (!e.changedTouches.length) return;
-
-                const pos = input._touchToCanvasCoords(e.changedTouches[0]);
-                if (this.page === 'main') {
-                    this._handleMainTouch(pos.x, pos.y);
-                } else {
-                    this._handleSettingsTouch(pos.x, pos.y);
-                }
-            };
-            input._canvas.addEventListener('touchend', this._onTouchEnd, { passive: false });
-        }
+        this._refreshTouchEndBinding();
     }
 
     deactivate() {
+        this._unbindTouchEndBinding();
+    }
+
+    _refreshAvailableModes() {
+        const currentModeKey = MODES[this.modeIndex] ? MODES[this.modeIndex].key : (ALL_MODES[0] ? ALL_MODES[0].key : '1pvai');
+        MODES = getAvailableModes(this._input);
+        const nextIndex = MODES.findIndex((mode) => mode.key === currentModeKey);
+        this.modeIndex = nextIndex >= 0 ? nextIndex : 0;
+    }
+
+    _unbindTouchEndBinding() {
         if (this._onTouchEnd && this._input && this._input._canvas) {
             this._input._canvas.removeEventListener('touchend', this._onTouchEnd);
         }
         this._onTouchEnd = null;
+    }
+
+    _refreshTouchEndBinding() {
+        const input = this._input;
+        const shouldBind = !!(input && input.touchEnabled && input._canvas);
+        if (!shouldBind) {
+            this._unbindTouchEndBinding();
+            return;
+        }
+
+        if (this._onTouchEnd) return;
+
+        this._onTouchEnd = (e) => {
+            if (typeof gameState !== 'undefined' &&
+                gameState.current !== STATE.MENU &&
+                gameState.current !== STATE.SETTINGS) {
+                return;
+            }
+
+            e.preventDefault();
+            if (!e.changedTouches.length) return;
+
+            const pos = input._touchToCanvasCoords(e.changedTouches[0]);
+            if (this.page === 'main') {
+                this._handleMainTouch(pos.x, pos.y);
+            } else {
+                this._handleSettingsTouch(pos.x, pos.y);
+            }
+        };
+        input._canvas.addEventListener('touchend', this._onTouchEnd, { passive: false });
     }
 
     update() {
@@ -175,13 +195,7 @@ class Menu {
 
         if (confirmPressed) {
             const selectedItem = items[this.settingsRow];
-            if (selectedItem && selectedItem.kind === 'controls') {
-                this.openControlsConfig = true;
-                return;
-            }
-            if (selectedItem && selectedItem.kind === 'back') {
-                this._closeSettings();
-            }
+            this._activateSettingsItem(selectedItem);
         }
 
         if (escPressed) this._closeSettings();
@@ -249,6 +263,7 @@ class Menu {
 
     _handleSettingsTouch(x, y) {
         const layout = this._getTouchSettingsLayout();
+        const items = this._getSettingsItems();
 
         for (let i = 0; i < layout.options.length; i++) {
             const card = layout.options[i];
@@ -257,13 +272,36 @@ class Menu {
             this.settingsRow = i;
             if (card.kind === 'adjust') {
                 this._changeSettingsOption(i, x < card.x + card.w / 2 ? -1 : 1);
-            } else if (card.kind === 'controls') {
-                this.openControlsConfig = true;
-            } else if (card.kind === 'back') {
-                this._closeSettings();
+            } else {
+                this._activateSettingsItem(items[i]);
             }
             return;
         }
+    }
+
+    _activateSettingsItem(item) {
+        if (!item) return;
+        if (item.kind === 'controls') {
+            this.openControlsConfig = true;
+            return;
+        }
+        if (item.kind === 'action' && item.action === 'switchUiMode') {
+            this._switchUiMode(item.mode);
+            return;
+        }
+        if (item.kind === 'back') {
+            this._closeSettings();
+        }
+    }
+
+    _switchUiMode(mode) {
+        if (!this._input || typeof this._input.setUiMode !== 'function') return;
+        this._input.setUiMode(mode);
+        this._refreshAvailableModes();
+        this.settingsMaxRow = this._getSettingsItems().length - 1;
+        this.settingsRow = clamp(this.settingsRow, 0, this.settingsMaxRow);
+        this._prevKeys.clear();
+        this._refreshTouchEndBinding();
     }
 
     draw(ctx) {
@@ -378,19 +416,23 @@ class Menu {
 
     _drawTouchSettings(ctx) {
         const layout = this._getTouchSettingsLayout();
+        const items = this._getSettingsItems();
         TouchUI.drawTitle(ctx, t('settingsTitle'), t('settingsSubtitle'), Theme.colors.tanks[1], 42);
         this._drawTouchBoard(ctx, layout.board, Theme.colors.tanks[1]);
 
         for (let i = 0; i < layout.options.length; i++) {
             const card = layout.options[i];
             const selected = i === this.settingsRow;
+            const item = items[i];
 
-            if (card.kind === 'adjust') {
-                const label = i === 0 ? t('language') : t('theme');
-                const value = i === 0 ? t('langName') : t(Theme.current === 'light' ? 'themeLight' : 'themeDark');
-                const accent = i === 0 ? Theme.colors.tanks[1] : Theme.colors.tanks[2] || Theme.colors.tanks[0];
+            if (item.kind === 'adjust') {
+                const label = this._getSettingsItemLabel(item);
+                const value = this._getSettingsItemValue(item);
+                const accent = item.setting === 'language'
+                    ? Theme.colors.tanks[1]
+                    : (item.setting === 'theme' ? (Theme.colors.tanks[2] || Theme.colors.tanks[0]) : Theme.colors.tanks[0]);
                 this._drawTouchOptionCard(ctx, card, label, value, t('touchHint'), selected, accent);
-            } else if (card.kind === 'controls') {
+            } else if (item.kind === 'controls') {
                 this._drawTouchActionCard(
                     ctx,
                     card,
@@ -398,6 +440,17 @@ class Menu {
                     t('controlsSubtitle'),
                     selected,
                     Theme.colors.tanks[0],
+                    false
+                );
+            } else if (item.kind === 'action') {
+                const accent = item.mode === 'desktop' ? (Theme.colors.tanks[2] || Theme.colors.tanks[0]) : Theme.colors.tanks[0];
+                this._drawTouchActionCard(
+                    ctx,
+                    card,
+                    this._plainLabel(this._getSettingsItemLabel(item)),
+                    this._getTouchSettingsActionSubtitle(item),
+                    selected,
+                    accent,
                     false
                 );
             } else {
@@ -555,23 +608,26 @@ class Menu {
     }
 
     _getTouchSettingsLayout() {
+        const items = this._getSettingsItems();
         const board = { x: 58, y: 148, w: CANVAS_W - 116, h: 394, radius: 28 };
         const cardX = board.x + 22;
         const cardW = board.w - 44;
-        const cardH = 64;
         const gap = 14;
         const firstY = board.y + 26;
-        const options = [
-            { x: cardX, y: firstY, w: cardW, h: cardH, radius: 22, kind: 'adjust' },
-            { x: cardX, y: firstY + (cardH + gap), w: cardW, h: cardH, radius: 22, kind: 'adjust' }
-        ];
+        const options = [];
+        let nextY = firstY;
 
-        let actionY = firstY + (cardH + gap) * 2 + 8;
-        if (this._input && this._input.isTouchDevice) {
-            options.push({ x: cardX, y: actionY, w: cardW, h: 62, radius: 22, kind: 'controls' });
-            actionY += 76;
+        for (const item of items) {
+            const height = item.kind === 'adjust' ? 64 : (item.kind === 'back' ? 56 : 62);
+            const radius = item.kind === 'back' ? 20 : 22;
+            options.push({ x: cardX, y: nextY, w: cardW, h: height, radius, kind: item.kind });
+            nextY += height + gap;
         }
-        options.push({ x: cardX, y: actionY, w: cardW, h: 56, radius: 20, kind: 'back' });
+
+        const lastCard = options[options.length - 1];
+        if (lastCard) {
+            board.h = Math.max(board.h, lastCard.y + lastCard.h - board.y + 18);
+        }
 
         return { board, options };
     }
@@ -582,10 +638,16 @@ class Menu {
             { kind: 'adjust', setting: 'theme' }
         ];
 
-        if (this._input && this._input.isTouchDevice) {
+        if (this._input && this._input.touchEnabled) {
             items.push({ kind: 'controls' });
+            if (this._input.canSwitchUiMode) {
+                items.push({ kind: 'action', action: 'switchUiMode', mode: 'desktop' });
+            }
         } else {
             items.push({ kind: 'adjust', setting: 'singleControl' });
+            if (this._input && this._input.canSwitchUiMode) {
+                items.push({ kind: 'action', action: 'switchUiMode', mode: 'touch' });
+            }
         }
 
         items.push({ kind: 'back' });
@@ -595,6 +657,8 @@ class Menu {
     _getSettingsItemLabel(item) {
         if (item.kind === 'back') return t('back');
         if (item.kind === 'controls') return t('controlsConfig');
+        if (item.kind === 'action' && item.mode === 'desktop') return t('switchToDesktopUi');
+        if (item.kind === 'action' && item.mode === 'touch') return t('switchToTouchUi');
         if (item.setting === 'language') return t('language');
         if (item.setting === 'theme') return t('theme');
         if (item.setting === 'singleControl') return t('singlePlayerControl');
@@ -607,6 +671,13 @@ class Menu {
         if (item.setting === 'theme') return t(Theme.current === 'light' ? 'themeLight' : 'themeDark');
         if (item.setting === 'singleControl') return t(this._getSinglePlayerControlMode());
         return '';
+    }
+
+    _getTouchSettingsActionSubtitle(item) {
+        if (item.kind === 'controls') return t('controlsSubtitle');
+        if (item.kind === 'action' && item.mode === 'desktop') return t('switchToDesktopUiHint');
+        if (item.kind === 'action' && item.mode === 'touch') return t('switchToTouchUiHint');
+        return t('touchHint');
     }
 
     _getSinglePlayerControlMode() {
