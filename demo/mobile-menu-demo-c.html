@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>手机主界面 Demo C - 横屏快速开局版</title>
+    <style>
+        :root {
+            --bg: #2b2b2b;
+            --panel: rgba(24, 24, 24, 0.92);
+            --panel-soft: rgba(255,255,255,0.05);
+            --stroke: rgba(255,255,255,0.12);
+            --inner: rgba(255,255,255,0.05);
+            --text: #e0e0e0;
+            --text-2: #b0b0b0;
+            --hint: #888888;
+            --red: #e57368;
+            --blue: #6bb6e8;
+            --green: #5fd68d;
+            --shadow: rgba(0,0,0,0.42);
+        }
+
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Consolas, "Courier New", monospace;
+        }
+
+        .screen {
+            min-height: 100vh;
+            padding: 16px calc(18px + env(safe-area-inset-right)) 16px calc(18px + env(safe-area-inset-left));
+            background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0);
+            background-size: 28px 28px;
+        }
+
+        .frame {
+            min-height: calc(100vh - 32px);
+            border-radius: 28px;
+            padding: 18px;
+            background: linear-gradient(180deg, rgba(43,43,43,0.96), rgba(34,34,34,0.98));
+            box-shadow: 0 18px 48px var(--shadow);
+            display: grid;
+            grid-template-columns: minmax(220px, 0.72fr) minmax(280px, 1fr) minmax(240px, 0.82fr);
+            gap: 16px;
+        }
+
+        .panel {
+            border-radius: 28px;
+            background: var(--panel);
+            border: 1.5px solid rgba(95,214,141,0.2);
+            box-shadow: inset 0 0 0 1px var(--inner);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .panel::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0);
+            background-size: 28px 28px;
+            opacity: 0.35;
+            pointer-events: none;
+        }
+
+        .hero {
+            padding: 22px 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            border-color: rgba(95,214,141,0.2);
+        }
+
+        .tag {
+            display: inline-block;
+            width: fit-content;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1.2px solid rgba(95,214,141,0.42);
+            background: rgba(95,214,141,0.14);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .title {
+            margin: 14px 0 0;
+            font-size: clamp(32px, 4.8vw, 44px);
+            line-height: 1.08;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .subtitle {
+            margin-top: 10px;
+            text-align: center;
+            color: var(--hint);
+            font-size: 14px;
+        }
+
+        .line {
+            width: 200px;
+            max-width: 84%;
+            height: 2px;
+            margin: 14px auto 0;
+            background: linear-gradient(90deg, rgba(95,214,141,0), rgba(95,214,141,0.95), rgba(95,214,141,0));
+        }
+
+        .hero-copy {
+            color: var(--text-2);
+            font-size: 13px;
+            line-height: 1.75;
+        }
+
+        .hero-note {
+            margin-top: 14px;
+            border-radius: 18px;
+            border: 1.5px solid var(--stroke);
+            background: rgba(255,255,255,0.04);
+            box-shadow: inset 0 0 0 1px var(--inner);
+            padding: 12px 14px;
+            color: var(--text-2);
+            font-size: 12px;
+            line-height: 1.7;
+        }
+
+        .center {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            gap: 14px;
+        }
+
+        .quick,
+        .summary,
+        .settings-list,
+        .setting-item,
+        .foot {
+            border-radius: 24px;
+            border: 1.5px solid var(--stroke);
+            box-shadow: inset 0 0 0 1px var(--inner);
+            background: var(--panel-soft);
+        }
+
+        .quick {
+            padding: 18px;
+            border-color: rgba(229,115,104,0.46);
+            background: rgba(229,115,104,0.18);
+        }
+
+        .quick-title { font-size: 15px; color: var(--hint); }
+        .quick-main { font-size: 30px; font-weight: 700; margin-top: 8px; }
+        .quick-copy { color: var(--text-2); font-size: 13px; line-height: 1.75; margin-top: 10px; }
+
+        .start-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 14px;
+        }
+
+        .ok-pill {
+            width: 86px;
+            min-height: 40px;
+            border-radius: 14px;
+            border: 1.2px solid rgba(229,115,104,0.45);
+            background: rgba(229,115,104,0.12);
+            color: var(--red);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+        }
+
+        .summary {
+            padding: 16px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .summary-box {
+            border-radius: 18px;
+            border: 1.5px solid var(--stroke);
+            box-shadow: inset 0 0 0 1px var(--inner);
+            background: rgba(255,255,255,0.04);
+            padding: 12px 10px;
+            text-align: center;
+        }
+
+        .summary-box.red { border-color: rgba(229,115,104,0.42); }
+        .summary-box.blue { border-color: rgba(107,182,232,0.42); }
+        .summary-box.green { border-color: rgba(95,214,141,0.42); }
+        .sum-label { color: var(--hint); font-size: 12px; }
+        .sum-value { margin-top: 8px; font-size: 18px; font-weight: 700; }
+
+        .foot {
+            padding: 12px 16px;
+            color: var(--text-2);
+            font-size: 13px;
+            line-height: 1.7;
+        }
+
+        .right {
+            padding: 18px;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 14px;
+            border-color: rgba(107,182,232,0.22);
+        }
+
+        .right-title { font-size: 15px; color: var(--hint); }
+
+        .settings-list {
+            padding: 0;
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+            display: grid;
+            gap: 12px;
+        }
+
+        .setting-item {
+            padding: 14px 16px;
+        }
+
+        .setting-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .setting-label { font-size: 17px; font-weight: 700; }
+        .setting-value { font-size: 14px; font-weight: 700; }
+        .setting-value.red { color: var(--red); }
+        .setting-value.blue { color: var(--blue); }
+        .setting-value.green { color: var(--green); }
+        .setting-sub { color: var(--hint); font-size: 12px; margin-top: 6px; }
+
+        @media (max-width: 1100px) {
+            .frame { grid-template-columns: 1fr; }
+            .summary { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="screen">
+        <main class="frame">
+            <section class="panel hero">
+                <div>
+                    <span class="tag">方案 C · 横屏快速开局版</span>
+                    <h1 class="title">坦克大战</h1>
+                    <div class="subtitle">H5 网页版</div>
+                    <div class="line"></div>
+                </div>
+
+                <div>
+                    <div class="hero-copy">这个方向仍然沿用现在程序里的面板、描边、等宽字和坦克色点缀，但在横屏里把“立即开局”放到中心，减少首屏同时出现的大量切换控件。</div>
+                    <div class="hero-note">适合如果你希望手机横屏主界面看起来更干净、更像“先开局，后微调”的节奏。</div>
+                </div>
+            </section>
+
+            <section class="center">
+                <article class="quick">
+                    <div class="quick-title">快速开始</div>
+                    <div class="quick-main">开始游戏</div>
+                    <div class="quick-copy">当前常用组合直接放在中间最大区域，首屏压力更小，横屏拿着手机时会更容易聚焦到“开一局”这件事。</div>
+                    <div class="start-row">
+                        <div>当前配置：1人 vs AI / 5分 / 中等</div>
+                        <div class="ok-pill">OK</div>
+                    </div>
+                </article>
+
+                <article class="summary">
+                    <div class="summary-box red">
+                        <div class="sum-label">模式</div>
+                        <div class="sum-value">1人 vs AI</div>
+                    </div>
+                    <div class="summary-box blue">
+                        <div class="sum-label">胜利分数</div>
+                        <div class="sum-value">5</div>
+                    </div>
+                    <div class="summary-box green">
+                        <div class="sum-label">AI 难度</div>
+                        <div class="sum-value">中等</div>
+                    </div>
+                </article>
+
+                <article class="foot">重点：首屏更简洁，开始区最大；代价是参数入口放到右侧，不像 A / B 那样一眼全展开。</article>
+            </section>
+
+            <section class="panel right">
+                <div class="right-title">更多设置</div>
+                <div class="settings-list">
+                    <article class="setting-item">
+                        <div class="setting-head">
+                            <div class="setting-label">模式</div>
+                            <div class="setting-value red">1人 vs AI</div>
+                        </div>
+                        <div class="setting-sub">点击进入后再左右切换</div>
+                    </article>
+
+                    <article class="setting-item">
+                        <div class="setting-head">
+                            <div class="setting-label">胜利分数</div>
+                            <div class="setting-value blue">5</div>
+                        </div>
+                        <div class="setting-sub">保持当前风格，但把列表放到右栏</div>
+                    </article>
+
+                    <article class="setting-item">
+                        <div class="setting-head">
+                            <div class="setting-label">AI 难度</div>
+                            <div class="setting-value green">中等</div>
+                        </div>
+                        <div class="setting-sub">让首页先聚焦开局，再做细调</div>
+                    </article>
+
+                    <article class="setting-item">
+                        <div class="setting-head">
+                            <div class="setting-label">设置</div>
+                            <div class="setting-value blue">进入</div>
+                        </div>
+                        <div class="setting-sub">语言、主题、控制器设置</div>
+                    </article>
+                </div>
+            </section>
+        </main>
+    </div>
+</body>
+</html>

@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>手机主界面 Demo A - 横屏稳妥放大版</title>
+    <style>
+        :root {
+            --bg: #2b2b2b;
+            --grid: #3a3a3a;
+            --panel: rgba(24, 24, 24, 0.9);
+            --panel-soft: rgba(255, 255, 255, 0.06);
+            --stroke: rgba(255, 255, 255, 0.12);
+            --inner: rgba(255, 255, 255, 0.05);
+            --text: #e0e0e0;
+            --text-2: #b0b0b0;
+            --hint: #888888;
+            --red: #e57368;
+            --blue: #6bb6e8;
+            --green: #5fd68d;
+            --shadow: rgba(0, 0, 0, 0.42);
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Consolas, "Courier New", monospace;
+        }
+
+        body {
+            overflow: auto;
+        }
+
+        .screen {
+            min-height: 100vh;
+            padding: 16px calc(18px + env(safe-area-inset-right)) 16px calc(18px + env(safe-area-inset-left));
+            position: relative;
+            background-image:
+                radial-gradient(circle at 1px 1px, rgba(255,255,255,0.09) 1px, transparent 0);
+            background-size: 28px 28px;
+        }
+
+        .frame {
+            min-height: calc(100vh - 32px);
+            border-radius: 28px;
+            padding: 18px;
+            background: linear-gradient(180deg, rgba(43,43,43,0.96), rgba(34,34,34,0.98));
+            box-shadow: 0 18px 48px var(--shadow);
+            display: grid;
+            grid-template-columns: minmax(220px, 0.88fr) minmax(420px, 1.35fr);
+            gap: 18px;
+        }
+
+        .hero,
+        .board,
+        .info-strip {
+            border-radius: 28px;
+            border: 1.5px solid rgba(229, 115, 104, 0.22);
+            background: var(--panel);
+            box-shadow: inset 0 0 0 1px var(--inner);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before,
+        .board::before,
+        .info-strip::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0);
+            background-size: 28px 28px;
+            opacity: 0.35;
+            pointer-events: none;
+        }
+
+        .hero {
+            padding: 24px 22px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .demo-tag {
+            display: inline-block;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1.2px solid rgba(229, 115, 104, 0.42);
+            background: rgba(229, 115, 104, 0.14);
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .title-wrap {
+            text-align: center;
+            margin: 12px 0 18px;
+        }
+
+        .title {
+            font-size: clamp(34px, 5.2vw, 48px);
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            margin: 0;
+        }
+
+        .subtitle {
+            color: var(--hint);
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        .title-line {
+            width: min(240px, 80%);
+            height: 2px;
+            margin: 14px auto 0;
+            background: linear-gradient(90deg, rgba(229,115,104,0), rgba(229,115,104,0.95), rgba(229,115,104,0));
+        }
+
+        .hero-copy {
+            color: var(--text-2);
+            font-size: 14px;
+            line-height: 1.75;
+        }
+
+        .hero-pills {
+            display: grid;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .mini-pill {
+            border-radius: 16px;
+            border: 1.2px solid var(--stroke);
+            background: rgba(255,255,255,0.04);
+            padding: 10px 12px;
+            color: var(--text-2);
+            font-size: 13px;
+        }
+
+        .right-col {
+            display: grid;
+            grid-template-rows: 1fr auto;
+            gap: 16px;
+            min-height: 0;
+        }
+
+        .board {
+            padding: 18px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .board-left {
+            display: grid;
+            gap: 12px;
+        }
+
+        .card,
+        .action-card,
+        .summary-card {
+            border-radius: 22px;
+            border: 1.5px solid var(--stroke);
+            box-shadow: inset 0 0 0 1px var(--inner);
+            background: var(--panel-soft);
+            padding: 14px 16px;
+        }
+
+        .card.accent-red { border-color: rgba(229,115,104,0.5); background: rgba(229,115,104,0.12); }
+        .card.accent-blue { border-color: rgba(107,182,232,0.5); background: rgba(107,182,232,0.12); }
+        .card.accent-green { border-color: rgba(95,214,141,0.5); background: rgba(95,214,141,0.12); }
+
+        .card-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .card-label { font-size: 18px; font-weight: 700; color: var(--text); }
+        .card-sub { font-size: 12px; color: var(--hint); }
+
+        .stepper {
+            display: grid;
+            grid-template-columns: 44px 1fr 44px;
+            gap: 10px;
+        }
+
+        .btn,
+        .value-pill,
+        .ok-pill {
+            min-height: 36px;
+            border-radius: 14px;
+            border: 1.2px solid currentColor;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .card.accent-red .btn,
+        .card.accent-red .value-pill { color: var(--red); background: rgba(229,115,104,0.1); }
+        .card.accent-blue .btn,
+        .card.accent-blue .value-pill { color: var(--blue); background: rgba(107,182,232,0.1); }
+        .card.accent-green .btn,
+        .card.accent-green .value-pill { color: var(--green); background: rgba(95,214,141,0.1); }
+
+        .board-right {
+            display: grid;
+            grid-template-rows: auto auto 1fr;
+            gap: 14px;
+        }
+
+        .summary-card {
+            border-color: rgba(107,182,232,0.35);
+        }
+
+        .summary-title { font-size: 14px; color: var(--hint); margin-bottom: 10px; }
+        .summary-main { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+        .summary-copy { color: var(--text-2); font-size: 13px; line-height: 1.7; }
+
+        .action-card.primary {
+            border-color: rgba(229,115,104,0.48);
+            background: rgba(229,115,104,0.22);
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05), 0 0 0 2px rgba(229,115,104,0.08);
+        }
+
+        .action-card.secondary {
+            border-color: rgba(107,182,232,0.35);
+        }
+
+        .action-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: start;
+        }
+
+        .action-title { font-size: 22px; font-weight: 700; }
+        .action-copy { color: var(--text-2); font-size: 13px; line-height: 1.7; margin-top: 8px; }
+
+        .ok-pill.red { color: var(--red); background: rgba(229,115,104,0.14); border-color: rgba(229,115,104,0.45); width: 72px; }
+        .ok-pill.blue { color: var(--blue); background: rgba(107,182,232,0.14); border-color: rgba(107,182,232,0.42); width: 72px; }
+
+        .info-strip {
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            border-color: rgba(95,214,141,0.2);
+        }
+
+        .info-main { color: var(--text-2); font-size: 13px; }
+        .info-strong { color: var(--text); font-size: 14px; }
+
+        @media (max-width: 980px) {
+            .frame { grid-template-columns: 1fr; }
+            .board { grid-template-columns: 1fr; }
+            .right-col { grid-template-rows: auto auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="screen">
+        <main class="frame">
+            <section class="hero">
+                <div>
+                    <span class="demo-tag">方案 A · 横屏稳妥放大版</span>
+                    <div class="title-wrap">
+                        <h1 class="title">坦克大战</h1>
+                        <div class="subtitle">H5 网页版</div>
+                        <div class="title-line"></div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="hero-copy">这个方向尽量贴近现在程序里的触摸菜单风格：保留同样的深灰底、点阵面板、等宽字、三色点缀，只把横屏下的主菜单改成更宽、更松、更容易点的结构。</div>
+                    <div class="hero-pills">
+                        <div class="mini-pill">优先解决：横屏下内容看起来挤、卡片显小、字不够醒目</div>
+                        <div class="mini-pill">风格保持：接近正式 [TouchUI](js/utils.js:119) / [Menu._drawTouchMain()](js/menu.js:385) 的视觉语言</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="right-col">
+                <section class="board">
+                    <div class="board-left">
+                        <article class="card accent-red">
+                            <div class="card-top">
+                                <div>
+                                    <div class="card-label">模式</div>
+                                    <div class="card-sub">点击左右区域切换</div>
+                                </div>
+                            </div>
+                            <div class="stepper">
+                                <div class="btn"><</div>
+                                <div class="value-pill">1人 vs 2AI</div>
+                                <div class="btn">></div>
+                            </div>
+                        </article>
+
+                        <article class="card accent-blue">
+                            <div class="card-top">
+                                <div>
+                                    <div class="card-label">胜利分数</div>
+                                    <div class="card-sub">触摸命中区变大</div>
+                                </div>
+                            </div>
+                            <div class="stepper">
+                                <div class="btn"><</div>
+                                <div class="value-pill">5</div>
+                                <div class="btn">></div>
+                            </div>
+                        </article>
+
+                        <article class="card accent-green">
+                            <div class="card-top">
+                                <div>
+                                    <div class="card-label">AI 难度</div>
+                                    <div class="card-sub">保留现有三色区分</div>
+                                </div>
+                            </div>
+                            <div class="stepper">
+                                <div class="btn"><</div>
+                                <div class="value-pill">困难</div>
+                                <div class="btn">></div>
+                            </div>
+                        </article>
+                    </div>
+
+                    <div class="board-right">
+                        <article class="summary-card">
+                            <div class="summary-title">当前配置概览</div>
+                            <div class="summary-main">1人 vs 2AI / 5分 / 困难</div>
+                            <div class="summary-copy">横屏里把说明和总结放到右侧独立区域，不再全部挤到底部一行小字。</div>
+                        </article>
+
+                        <article class="action-card primary">
+                            <div class="action-head">
+                                <div>
+                                    <div class="action-title">开始游戏</div>
+                                    <div class="action-copy">主按钮更大、更醒目，保持原本红色主强调。</div>
+                                </div>
+                                <div class="ok-pill red">OK</div>
+                            </div>
+                        </article>
+
+                        <article class="action-card secondary">
+                            <div class="action-head">
+                                <div>
+                                    <div class="action-title">设置</div>
+                                    <div class="action-copy">语言、主题、控制器设置继续作为次级入口。</div>
+                                </div>
+                                <div class="ok-pill blue">OK</div>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="info-strip">
+                    <div class="info-main">点击卡片左右区域切换，点击按钮继续</div>
+                    <div class="info-strong">重点：横屏下更大、更松，但不脱离原 UI</div>
+                </section>
+            </section>
+        </main>
+    </div>
+</body>
+</html>
