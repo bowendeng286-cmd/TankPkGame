@@ -250,20 +250,37 @@ class Renderer {
         }
     }
 
-    drawRoundMessage(text, showHint, isTouchDevice) {
+    drawRoundMessage(text, showHint, isTouchDevice, progress) {
         const ctx = this.ctx;
+        const amount = clamp(progress == null ? 1 : progress, 0, 1);
+        const eased = 1 - Math.pow(1 - amount, 3);
+        const scale = lerp(0.96, 1, eased);
+        const offsetY = lerp(10, 0, eased);
         ctx.save();
+        ctx.translate(CANVAS_W / 2, CANVAS_H / 2 + offsetY);
+        ctx.scale(scale, scale);
+        ctx.globalAlpha *= amount;
         ctx.font = 'bold 36px monospace';
         ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(0, CANVAS_H / 2 - 40, CANVAS_W, 80);
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillText(text, CANVAS_W / 2, CANVAS_H / 2 + 8);
+        ctx.fillStyle = colorWithAlpha('#000000', 0.6 * amount);
+        ctx.fillRect(-CANVAS_W / 2, -40, CANVAS_W, 80);
+        ctx.fillStyle = colorWithAlpha('#FFFFFF', amount);
+        ctx.fillText(text, 0, 8);
         if (showHint) {
             ctx.font = '16px monospace';
-            ctx.fillStyle = '#CCC';
-            ctx.fillText(isTouchDevice ? t('tapToContinue') : t('pressEnter'), CANVAS_W / 2, CANVAS_H / 2 + 32);
+            ctx.fillStyle = colorWithAlpha('#CCCCCC', amount);
+            ctx.fillText(isTouchDevice ? t('tapToContinue') : t('pressEnter'), 0, 32);
         }
+        ctx.restore();
+    }
+
+    drawScreenTransitionOverlay(alpha) {
+        if (alpha <= 0) return;
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.fillStyle = colorWithAlpha('#000000', clamp(alpha, 0, 1));
+        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
         ctx.restore();
     }
 

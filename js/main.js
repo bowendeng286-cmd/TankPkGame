@@ -47,6 +47,83 @@ var pickupSpawnTimer = 0;
 var nextPickupId = 1;
 var pendingVictoryTimer = null; // 胜利缓冲倒计时（null=未激活）
 var pendingWinnerId = -1;       // 缓冲期触发时最后存活坦克ID（-1=无人存活）
+var screenTransition = {
+    active: false,
+    phase: 'idle',
+    alpha: 0,
+    timer: 0,
+    halfDuration: 0.11,
+    switched: false,
+    onMidpoint: null
+};
+var roundMessageAnim = {
+    text: '',
+    state: '',
+    signature: '',
+    startedAt: 0
+};
+var frameNow = performance.now();
+
+function syncRoundMessageAnimation(now, forceReset) {
+    const isRoundMessageState = gameState.current === STATE.ROUND_PAUSE || gameState.current === STATE.GAME_OVER;
+    if (!isRoundMessageState) {
+        roundMessageAnim.text = '';
+        roundMessageAnim.state = '';
+        roundMessageAnim.signature = '';
+        roundMessageAnim.startedAt = 0;
+        return;
+    }
+
+    const signature = `${gameState.current}::${gameState.roundMessage || ''}`;
+    if (forceReset || roundMessageAnim.signature !== signature) {
+        roundMessageAnim.text = gameState.roundMessage || '';
+        roundMessageAnim.state = gameState.current;
+        roundMessageAnim.signature = signature;
+        roundMessageAnim.startedAt = now != null ? now : performance.now();
+    }
+}
+
+function beginScreenTransition(onMidpoint, duration) {
+    const totalDuration = duration || 0.22;
+    screenTransition.active = true;
+    screenTransition.phase = 'out';
+    screenTransition.alpha = 0;
+    screenTransition.timer = 0;
+    screenTransition.halfDuration = Math.max(0.01, totalDuration * 0.5);
+    screenTransition.switched = false;
+    screenTransition.onMidpoint = typeof onMidpoint === 'function' ? onMidpoint : null;
+}
+
+function updateScreenTransition(dt) {
+    if (!screenTransition.active) return;
+
+    screenTransition.timer += dt;
+    const phaseDuration = screenTransition.halfDuration;
+    const progress = clamp(screenTransition.timer / phaseDuration, 0, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+
+    if (screenTransition.phase === 'out') {
+        screenTransition.alpha = eased;
+        if (progress >= 1) {
+            if (!screenTransition.switched && screenTransition.onMidpoint) {
+                screenTransition.onMidpoint();
+            }
+            screenTransition.switched = true;
+            screenTransition.phase = 'in';
+            screenTransition.timer = 0;
+        }
+        return;
+    }
+
+    screenTransition.alpha = 1 - eased;
+    if (progress >= 1) {
+        screenTransition.active = false;
+        screenTransition.phase = 'idle';
+        screenTransition.alpha = 0;
+        screenTransition.timer = 0;
+        screenTransition.onMidpoint = null;
+    }
+}
 
 // ===== 初始化回合 =====
 function useBaseUiCanvas() {
@@ -575,13 +652,16 @@ function updateGame(dt) {
                     const label = winner.isAI ? t('ai') : `P${winner.id + 1}`;
                     gameState.pauseTimer = 0;
                     gameState.transitionTo(STATE.GAME_OVER, `${label} ${t('winsGame')}`);
+                    syncRoundMessageAnimation(frameNow, true);
                 } else {
                     const label = pendingWinner.isAI ? t('ai') : ('P' + (pendingWinner.id + 1));
                     gameState.startPause(ROUND_PAUSE_TIME, `${label} ${t('scores')}`);
+                    syncRoundMessageAnimation(frameNow, true);
                 }
             } else {
                 // 最后存活者也死了，平局
                 gameState.startPause(ROUND_PAUSE_TIME, t('draw'));
+                syncRoundMessageAnimation(frameNow, true);
             }
             pendingVictoryTimer = null;
             pendingWinnerId = -1;
@@ -590,7 +670,7 @@ function updateGame(dt) {
 }
 
 // ===== 绘制 =====
-function drawGame() {
+function drawGame(now = frameNow) {
     renderer.clear();
     renderer.drawGrid();
     renderer.drawWalls(maze.walls);
@@ -610,7 +690,8 @@ function drawGame() {
     renderer.drawScoreboardTop(tanks);
 
     if (gameState.current === STATE.ROUND_PAUSE || gameState.current === STATE.GAME_OVER) {
-        renderer.drawRoundMessage(gameState.roundMessage, gameState.current === STATE.GAME_OVER, input.isTouchDevice);
+        const messageProgress = clamp((now - roundMessageAnim.startedAt) / 220, 0, 1);
+        renderer.drawRoundMessage(gameState.roundMessage, gameState.current === STATE.GAME_OVER, input.isTouchDevice, messageProgress);
     }
     renderer.endFrame();
 
@@ -630,13 +711,18 @@ menu.activate(input);
 function gameLoop(timestamp) {
     const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
     lastTime = timestamp;
+    frameNow = timestamp;
+    updateScreenTransition(dt);
+    syncRoundMessageAnimation(frameNow);
 
     switch (gameState.current) {
         case STATE.MENU:
             useMenuCanvasForCurrentInput();
             menu.update();
             menu.draw(ctx);
-            if (menu.done) startGame(menu.result);
+            if (menu.done && !screenTransition.active) {
+                beginScreenTransition(() => startGame(menu.result), 0.22);
+            }
             if (menu.openSettings) {
                 gameState.transitionTo(STATE.SETTINGS);
                 menu.openSettings = false;
@@ -674,27 +760,36 @@ function gameLoop(timestamp) {
             break;
         case STATE.PLAYING:
             updateGame(dt);
-            drawGame();
+            drawGame(frameNow);
             break;
         case STATE.ROUND_PAUSE:
             particles.update(dt);
-            drawGame();
+            drawGame(frameNow);
             if (gameState.update(dt)) {
                 startRound();
                 gameState.transitionTo(STATE.PLAYING);
+                syncRoundMessageAnimation(frameNow);
             }
             break;
         case STATE.GAME_OVER:
             gameState.pauseTimer += dt;
-            drawGame();
+            drawGame(frameNow);
             // 按 Enter 或点击屏幕返回菜单 (延迟0.5s防误触)
-            if ((input.isDown('Enter') || input.consumeScreenTap()) && gameState.pauseTimer > 0.5) {
-                input.reset();
-                gameState.transitionTo(STATE.MENU);
-                menu.activate(input);
+            if ((input.isDown('Enter') || input.consumeScreenTap()) && gameState.pauseTimer > 0.5 && !screenTransition.active) {
+                beginScreenTransition(() => {
+                    input.reset();
+                    gameState.transitionTo(STATE.MENU);
+                    syncRoundMessageAnimation(frameNow);
+                    menu.activate(input);
+                }, 0.22);
             }
             break;
     }
+
+    if (screenTransition.alpha > 0.001) {
+        renderer.drawScreenTransitionOverlay(screenTransition.alpha);
+    }
+
     requestAnimationFrame(gameLoop);
 }
 requestAnimationFrame(gameLoop);

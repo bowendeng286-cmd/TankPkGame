@@ -63,6 +63,12 @@ class Menu {
         this._input = null;
         this._prevKeys = new Set();
         this._onTouchEnd = null;
+        this._animPrevTime = this._now();
+        this._pageAnim = { page: 'main', startedAt: this._animPrevTime, direction: -1 };
+        this._pageAnimDuration = 0.18;
+        this._selectionAnim = { main: [], settings: [], mapSize: [] };
+        this._touchPulseAnim = { main: [], settings: [], mapSize: [] };
+        this._touchPulseDuration = 0.18;
     }
 
     activate(input) {
@@ -80,6 +86,9 @@ class Menu {
 
         this.settingsMaxRow = this._getSettingsItems().length - 1;
         this._refreshTouchEndBinding();
+        this._animPrevTime = this._now();
+        this._startPageAnimation('main', -1);
+        this._syncSelectionAnimation(true, 1);
     }
 
     deactivate() {
@@ -91,6 +100,91 @@ class Menu {
         MODES = getAvailableModes(this._input);
         const nextIndex = MODES.findIndex((mode) => mode.key === currentModeKey);
         this.modeIndex = nextIndex >= 0 ? nextIndex : 0;
+    }
+
+    _now() {
+        return performance.now() * 0.001;
+    }
+
+    _startPageAnimation(page, direction) {
+        this._pageAnim = {
+            page,
+            startedAt: this._now(),
+            direction: direction || 1
+        };
+    }
+
+    _ensureAnimList(pageKey, length) {
+        const list = this._selectionAnim[pageKey] || (this._selectionAnim[pageKey] = []);
+        while (list.length < length) list.push(0);
+        list.length = length;
+
+        const pulseList = this._touchPulseAnim[pageKey] || (this._touchPulseAnim[pageKey] = []);
+        if (pulseList.length > length) pulseList.length = length;
+        return list;
+    }
+
+    _updateSelectionAnimationFor(pageKey, length, selectedIndex, force, blend) {
+        if (length <= 0) {
+            this._selectionAnim[pageKey] = [];
+            return;
+        }
+        const list = this._ensureAnimList(pageKey, length);
+        const safeSelected = clamp(selectedIndex, 0, length - 1);
+        for (let i = 0; i < length; i++) {
+            const target = i === safeSelected ? 1 : 0;
+            list[i] = force ? target : lerp(list[i], target, blend);
+        }
+    }
+
+    _syncSelectionAnimation(force, blend) {
+        this._updateSelectionAnimationFor('main', 5, this.row, force, blend);
+        this.settingsMaxRow = this._getSettingsItems().length - 1;
+        this._updateSelectionAnimationFor('settings', this._getSettingsItems().length, this.settingsRow, force, blend);
+        this._updateSelectionAnimationFor('mapSize', this._getMapSizeItems().length, this.mapSizeRow, force, blend);
+    }
+
+    _tickAnimations() {
+        const now = this._now();
+        const dt = Math.min(Math.max(0, now - this._animPrevTime), 0.05);
+        this._animPrevTime = now;
+        const blend = 1 - Math.exp(-dt * 18);
+        this._syncSelectionAnimation(false, blend);
+    }
+
+    _getSelectionAmount(pageKey, index) {
+        const list = this._selectionAnim[pageKey] || [];
+        return clamp(list[index] || 0, 0, 1);
+    }
+
+    _triggerTouchPulse(pageKey, index) {
+        const pulseList = this._touchPulseAnim[pageKey] || (this._touchPulseAnim[pageKey] = []);
+        pulseList[index] = this._now();
+    }
+
+    _getTouchPulseAmount(pageKey, index) {
+        const pulseList = this._touchPulseAnim[pageKey] || [];
+        const startedAt = pulseList[index];
+        if (startedAt == null) return 0;
+        const progress = (this._now() - startedAt) / this._touchPulseDuration;
+        if (progress >= 1) return 0;
+        return Math.sin(progress * Math.PI) * (1 - progress * 0.2);
+    }
+
+    _getPageAnimationState() {
+        if (!this._pageAnim || this._pageAnim.page !== this.page) {
+            return { alpha: 1, offsetX: 0 };
+        }
+        const progress = clamp((this._now() - this._pageAnim.startedAt) / this._pageAnimDuration, 0, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        return {
+            alpha: lerp(0.38, 1, eased),
+            offsetX: (1 - eased) * (this._pageAnim.direction || 1) * 18
+        };
+    }
+
+    _getCardEmphasis(selectionAmount, pulseAmount) {
+        return clamp(Math.max(selectionAmount, pulseAmount * 0.9), 0, 1);
     }
 
     _unbindTouchEndBinding() {
@@ -131,6 +225,7 @@ class Menu {
     }
 
     update() {
+        this._tickAnimations();
         if (this.page === 'main') {
             this._updateMain();
         } else {
@@ -292,21 +387,25 @@ class Menu {
         this.page = 'settings';
         this.settingsRow = 0;
         this.openSettings = true;
+        this._startPageAnimation('settings', 1);
     }
 
     _openMapSizeSettings() {
         this.page = 'mapSize';
         this.mapSizeRow = 0;
         this.mapSizeSettings = getMapSizeSettings();
+        this._startPageAnimation('mapSize', 1);
     }
 
     _closeMapSizeSettings() {
         this.page = 'settings';
+        this._startPageAnimation('settings', -1);
     }
 
     _closeSettings() {
         this.page = 'main';
         this.openSettings = false;
+        this._startPageAnimation('main', -1);
     }
 
     _handleMainTouch(x, y) {
@@ -317,6 +416,7 @@ class Menu {
             if (!this._isInRect(x, y, card)) continue;
 
             this.row = i;
+            this._triggerTouchPulse('main', i);
             if (i < 3) {
                 this._changeMainOption(i, x < card.x + card.w / 2 ? -1 : 1);
             } else if (i === 3) {
@@ -331,12 +431,14 @@ class Menu {
     _handleSettingsTouch(x, y) {
         const layout = this._getTouchSettingsLayout();
         const items = this._getCurrentSettingsItems();
+        const pageKey = this.page;
 
         for (let i = 0; i < layout.options.length; i++) {
             const card = layout.options[i];
             if (!this._isInRect(x, y, card)) continue;
 
             this._setCurrentSettingsRow(i);
+            this._triggerTouchPulse(pageKey, i);
             if (card.kind === 'adjust') {
                 this._changeActiveSettingsOption(i, x < card.x + card.w / 2 ? -1 : 1);
             } else {
@@ -384,6 +486,11 @@ class Menu {
         ctx.translate(VIEWPORT_OFFSET_X, VIEWPORT_OFFSET_Y);
         ctx.scale(VIEWPORT_SCALE, VIEWPORT_SCALE);
 
+        const pageAnim = this._getPageAnimationState();
+        ctx.save();
+        ctx.globalAlpha *= pageAnim.alpha;
+        ctx.translate(pageAnim.offsetX, 0);
+
         if (this._input && this._input.touchEnabled) {
             if (this.page === 'main') this._drawTouchMain(ctx);
             else this._drawTouchSettings(ctx);
@@ -392,6 +499,24 @@ class Menu {
             else this._drawKeyboardSettings(ctx);
         }
 
+        ctx.restore();
+        ctx.restore();
+    }
+
+    _drawKeyboardOptionText(ctx, text, y, weight) {
+        const amount = clamp(weight || 0, 0, 1);
+        const drawX = Math.round(CANVAS_W / 2);
+        const drawY = Math.round(y);
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.font = '20px monospace';
+        ctx.fillStyle = amount > 0 ? mixColor(Theme.colors.text.secondary, Theme.colors.tanks[0], amount) : Theme.colors.text.secondary;
+        if (amount > 0.001) {
+            ctx.shadowColor = colorWithAlpha(Theme.colors.tanks[0], 0.35 * amount);
+            ctx.shadowBlur = 6 * amount;
+        }
+        ctx.fillText(text, drawX, drawY);
         ctx.restore();
     }
 
@@ -416,11 +541,10 @@ class Menu {
 
         for (let i = 0; i < items.length; i++) {
             const y = startY + i * gap;
-            const selected = i === this.row;
-            ctx.font = selected ? 'bold 22px monospace' : '20px monospace';
-            ctx.fillStyle = selected ? Theme.colors.tanks[0] : Theme.colors.text.secondary;
-            if (items[i].value) ctx.fillText(`${items[i].label}:  < ${items[i].value} >`, CANVAS_W / 2, y);
-            else ctx.fillText(items[i].label, CANVAS_W / 2, y);
+            const text = items[i].value
+                ? `${items[i].label}:  < ${items[i].value} >`
+                : items[i].label;
+            this._drawKeyboardOptionText(ctx, text, y, this._getSelectionAmount('main', i));
         }
 
         ctx.font = '14px monospace';
@@ -441,16 +565,14 @@ class Menu {
         const startY = 210;
         const gap = 60;
         const items = this._getCurrentSettingsItems();
+        const pageKey = this.page === 'mapSize' ? 'mapSize' : 'settings';
 
         for (let i = 0; i < items.length; i++) {
             const y = startY + i * gap;
-            const selected = i === this._getCurrentSettingsRow();
-            ctx.font = selected ? 'bold 22px monospace' : '20px monospace';
-            ctx.fillStyle = selected ? Theme.colors.tanks[0] : Theme.colors.text.secondary;
             const label = this._getSettingsItemLabel(items[i]);
             const value = this._getSettingsItemValue(items[i]);
-            if (value) ctx.fillText(`${label}:  < ${value} >`, CANVAS_W / 2, y);
-            else ctx.fillText(label, CANVAS_W / 2, y);
+            const text = value ? `${label}:  < ${value} >` : label;
+            this._drawKeyboardOptionText(ctx, text, y, this._getSelectionAmount(pageKey, i));
         }
 
         ctx.font = '14px monospace';
@@ -501,12 +623,30 @@ class Menu {
 
         for (let i = 0; i < 3; i++) {
             const card = layout.options[i];
-            this._drawTouchOptionCard(ctx, card, items[i].label, items[i].value, items[i].subtitle, i === this.row, optionColors[i]);
+            this._drawTouchOptionCard(
+                ctx,
+                card,
+                items[i].label,
+                items[i].value,
+                items[i].subtitle,
+                this._getSelectionAmount('main', i),
+                this._getTouchPulseAmount('main', i),
+                optionColors[i]
+            );
         }
 
         for (let i = 3; i < layout.options.length; i++) {
             const card = layout.options[i];
-            this._drawTouchActionCard(ctx, card, items[i].label, items[i].subtitle, i === this.row, i === 3 ? Theme.colors.tanks[0] : Theme.colors.tanks[1], i === 3);
+            this._drawTouchActionCard(
+                ctx,
+                card,
+                items[i].label,
+                items[i].subtitle,
+                this._getSelectionAmount('main', i),
+                this._getTouchPulseAmount('main', i),
+                i === 3 ? Theme.colors.tanks[0] : Theme.colors.tanks[1],
+                i === 3
+            );
         }
 
     }
@@ -546,7 +686,9 @@ class Menu {
 
         for (let i = 0; i < layout.options.length; i++) {
             const card = layout.options[i];
-            const selected = i === this._getCurrentSettingsRow();
+            const pageKey = this.page;
+            const selectionAmount = this._getSelectionAmount(pageKey, i);
+            const pulseAmount = this._getTouchPulseAmount(pageKey, i);
             const item = items[i];
 
             if (item.kind === 'adjust') {
@@ -556,14 +698,15 @@ class Menu {
                     ? Theme.colors.tanks[1]
                     : (item.setting === 'theme' ? (Theme.colors.tanks[2] || Theme.colors.tanks[0]) : Theme.colors.tanks[0]);
                 const subtitle = this.page === 'mapSize' ? t('mapSizeHint') : t('touchHint');
-                this._drawTouchOptionCard(ctx, card, label, value, subtitle, selected, accent);
+                this._drawTouchOptionCard(ctx, card, label, value, subtitle, selectionAmount, pulseAmount, accent);
             } else if (item.kind === 'controls') {
                 this._drawTouchActionCard(
                     ctx,
                     card,
                     t('controlsConfig'),
                     '',
-                    selected,
+                    selectionAmount,
+                    pulseAmount,
                     Theme.colors.tanks[0],
                     false
                 );
@@ -574,7 +717,8 @@ class Menu {
                     card,
                     this._plainLabel(this._getSettingsItemLabel(item)),
                     this._getTouchSettingsActionSubtitle(item),
-                    selected,
+                    selectionAmount,
+                    pulseAmount,
                     accent,
                     false
                 );
@@ -584,7 +728,8 @@ class Menu {
                     card,
                     this._plainLabel(t('back')),
                     this.page === 'mapSize' ? t('mapSizeHint') : t('touchHint'),
-                    selected,
+                    selectionAmount,
+                    pulseAmount,
                     Theme.colors.text.secondary,
                     false
                 );
@@ -617,13 +762,8 @@ class Menu {
         ctx.restore();
     }
 
-    _drawTouchOptionCard(ctx, card, label, value, subtitle, selected, accentColor) {
-        const fill = selected
-            ? colorWithAlpha(accentColor, Theme.current === 'dark' ? 0.14 : 0.12)
-            : TouchUI.surfaceSoftFill(1);
-        const border = selected
-            ? colorWithAlpha(accentColor, 0.5)
-            : TouchUI.surfaceStroke(1);
+    _drawTouchOptionCard(ctx, card, label, value, subtitle, selectionAmount, pulseAmount, accentColor) {
+        const emphasis = this._getCardEmphasis(selectionAmount, pulseAmount);
         const compact = card.w < 220 || card.h < 90;
         const spacious = card.h >= 108 && card.w >= 300;
         const sidePad = compact ? 10 : (spacious ? 22 : 18);
@@ -640,7 +780,7 @@ class Menu {
             ctx,
             label,
             card.w - sidePad * 2,
-            selected
+            emphasis > 0.45
                 ? (compact ? [16, 15, 14, 13] : [19, 18, 17, 16, 15, 14])
                 : (compact ? [15, 14, 13] : [18, 17, 16, 15, 14]),
             true
@@ -659,36 +799,57 @@ class Menu {
             compact ? [12, 11, 10] : [13, 12, 11],
             true
         );
+        const scale = 1 + pulseAmount * 0.035;
+
+        ctx.save();
+        if (scale !== 1) {
+            const cx = card.x + card.w / 2;
+            const cy = card.y + card.h / 2;
+            ctx.translate(cx, cy);
+            ctx.scale(scale, scale);
+            ctx.translate(-cx, -cy);
+        }
 
         TouchUI.drawPanel(ctx, card.x, card.y, card.w, card.h, {
             radius: card.radius,
-            fill,
-            border,
-            inset: TouchUI.innerStroke(selected ? 0.9 : 1),
+            fill: TouchUI.surfaceSoftFill(1),
+            border: TouchUI.surfaceStroke(1),
+            inset: TouchUI.innerStroke(1),
             shadow: false,
-            glowColor: selected ? colorWithAlpha(accentColor, 0.18) : null,
+            glowColor: emphasis > 0.02 ? colorWithAlpha(accentColor, 0.12 + emphasis * 0.1) : null,
             glowWidth: 2
         });
+
+        if (emphasis > 0.01) {
+            ctx.save();
+            roundedRectPath(ctx, card.x, card.y, card.w, card.h, card.radius);
+            ctx.fillStyle = colorWithAlpha(accentColor, lerp(Theme.current === 'dark' ? 0.04 : 0.035, Theme.current === 'dark' ? 0.14 : 0.12, emphasis));
+            ctx.fill();
+            ctx.strokeStyle = colorWithAlpha(accentColor, lerp(0.18, 0.52, emphasis));
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+            ctx.restore();
+        }
 
         TouchUI.drawPill(ctx, card.x + sidePad, controlY, arrowW, controlH, '<', {
             accentColor,
             textColor: Theme.colors.text.primary,
-            fillOpacity: selected ? 0.2 : 0.12,
-            borderOpacity: selected ? 0.5 : 0.25,
+            fillOpacity: lerp(0.12, 0.2, emphasis),
+            borderOpacity: lerp(0.25, 0.5, emphasis),
             font: compact ? 'bold 12px monospace' : 'bold 14px monospace'
         });
         TouchUI.drawPill(ctx, card.x + card.w - sidePad - arrowW, controlY, arrowW, controlH, '>', {
             accentColor,
             textColor: Theme.colors.text.primary,
-            fillOpacity: selected ? 0.2 : 0.12,
-            borderOpacity: selected ? 0.5 : 0.25,
+            fillOpacity: lerp(0.12, 0.2, emphasis),
+            borderOpacity: lerp(0.25, 0.5, emphasis),
             font: compact ? 'bold 12px monospace' : 'bold 14px monospace'
         });
         TouchUI.drawPill(ctx, valueX, controlY, valueW, controlH, value, {
             accentColor,
             textColor: Theme.colors.text.primary,
-            fillOpacity: selected ? 0.18 : 0.1,
-            borderOpacity: selected ? 0.44 : 0.22,
+            fillOpacity: lerp(0.1, 0.18, emphasis),
+            borderOpacity: lerp(0.22, 0.44, emphasis),
             font: valueFont
         });
 
@@ -702,19 +863,15 @@ class Menu {
         ctx.font = labelFont;
         ctx.fillText(label, card.x + sidePad, card.y + topTextY);
 
-        ctx.fillStyle = Theme.colors.text.hint;
+        ctx.fillStyle = colorWithAlpha(Theme.colors.text.hint, lerp(0.82, 1, emphasis));
         ctx.font = subtitleFont;
         ctx.fillText(subtitle, card.x + sidePad, card.y + subTextY);
         ctx.restore();
+        ctx.restore();
     }
 
-    _drawTouchActionCard(ctx, card, label, subtitle, selected, accentColor, primary) {
-        const fill = primary
-            ? colorWithAlpha(accentColor, Theme.current === 'dark' ? 0.26 : 0.2)
-            : (selected ? colorWithAlpha(accentColor, 0.12) : TouchUI.surfaceSoftFill(1));
-        const border = primary
-            ? colorWithAlpha(accentColor, 0.48)
-            : (selected ? colorWithAlpha(accentColor, 0.36) : TouchUI.surfaceStroke(1));
+    _drawTouchActionCard(ctx, card, label, subtitle, selectionAmount, pulseAmount, accentColor, primary) {
+        const emphasis = this._getCardEmphasis(selectionAmount, pulseAmount);
         const compact = !primary && (card.h < 88 || card.w < 360);
         const spacious = !compact && card.h >= 92;
         const okW = primary ? 82 : (compact ? 62 : 76);
@@ -739,22 +896,49 @@ class Menu {
             primary ? [13, 12, 11] : (compact ? [11, 10, 9] : [12, 11, 10]),
             false
         );
+        const scale = 1 + pulseAmount * 0.04;
+        const baseFill = primary
+            ? colorWithAlpha(accentColor, Theme.current === 'dark' ? 0.2 : 0.16)
+            : TouchUI.surfaceSoftFill(1);
+        const baseBorder = primary
+            ? colorWithAlpha(accentColor, 0.4)
+            : TouchUI.surfaceStroke(1);
+
+        ctx.save();
+        if (scale !== 1) {
+            const cx = card.x + card.w / 2;
+            const cy = card.y + card.h / 2;
+            ctx.translate(cx, cy);
+            ctx.scale(scale, scale);
+            ctx.translate(-cx, -cy);
+        }
 
         TouchUI.drawPanel(ctx, card.x, card.y, card.w, card.h, {
             radius: card.radius,
-            fill,
-            border,
+            fill: baseFill,
+            border: baseBorder,
             inset: TouchUI.innerStroke(1),
             shadow: false,
-            glowColor: primary || selected ? colorWithAlpha(accentColor, 0.18) : null,
+            glowColor: primary || emphasis > 0.02 ? colorWithAlpha(accentColor, 0.12 + emphasis * 0.1) : null,
             glowWidth: 2
         });
+
+        if (emphasis > 0.01) {
+            ctx.save();
+            roundedRectPath(ctx, card.x, card.y, card.w, card.h, card.radius);
+            ctx.fillStyle = colorWithAlpha(accentColor, lerp(primary ? 0.04 : 0.03, primary ? 0.12 : 0.1, emphasis));
+            ctx.fill();
+            ctx.strokeStyle = colorWithAlpha(accentColor, lerp(primary ? 0.22 : 0.16, primary ? 0.48 : 0.36, emphasis));
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+            ctx.restore();
+        }
 
         TouchUI.drawPill(ctx, okX, okY, okW, okH, 'OK', {
             accentColor,
             textColor: Theme.colors.text.primary,
-            fillOpacity: primary ? 0.2 : 0.12,
-            borderOpacity: primary ? 0.44 : 0.24,
+            fillOpacity: lerp(primary ? 0.16 : 0.12, primary ? 0.24 : 0.18, emphasis),
+            borderOpacity: lerp(primary ? 0.34 : 0.24, primary ? 0.5 : 0.36, emphasis),
             font: compact ? 'bold 11px monospace' : undefined
         });
 
@@ -768,9 +952,10 @@ class Menu {
         ctx.font = titleFont;
         ctx.fillText(label, titleX, titleY);
 
-        ctx.fillStyle = Theme.colors.text.hint;
+        ctx.fillStyle = colorWithAlpha(Theme.colors.text.hint, lerp(0.82, 1, emphasis));
         ctx.font = subtitleFont;
         ctx.fillText(subtitle, titleX, subtitleY);
+        ctx.restore();
         ctx.restore();
     }
 
