@@ -72,8 +72,9 @@ function useMenuCanvasForCurrentInput() {
 }
 
 function randomizeRoundMapSize() {
-    const cols = randInt(MAP_COLS_MIN, MAP_COLS_MAX);
-    const rows = randInt(MAP_ROWS_MIN, MAP_ROWS_MAX);
+    const mapSizeSettings = getMapSizeSettings();
+    const cols = randInt(mapSizeSettings.minCols, mapSizeSettings.maxCols);
+    const rows = randInt(mapSizeSettings.minRows, mapSizeSettings.maxRows);
     setMapSize(cols, rows);
     fitCanvas();
 }

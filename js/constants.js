@@ -5,6 +5,12 @@ const MAP_COLS_MIN = 3;
 const MAP_COLS_MAX = 10;
 const MAP_ROWS_MIN = 3;
 const MAP_ROWS_MAX = 10;
+const DEFAULT_MAP_SIZE_SETTINGS = Object.freeze({
+    minCols: MAP_COLS_MIN,
+    minRows: MAP_ROWS_MIN,
+    maxCols: MAP_COLS_MAX,
+    maxRows: MAP_ROWS_MAX
+});
 const CELL_SIZE = 60;
 const WALL_THICKNESS = 4;
 const MAZE_OFFSET_X = CELL_SIZE / 2;
@@ -36,18 +42,42 @@ function getCanvasHeightForRows(rows) {
     return (rows + 1) * CELL_SIZE + 20;
 }
 
-function getTouchReferenceWidth() {
-    if (typeof window !== 'undefined' && Number.isFinite(window.innerWidth) && window.innerWidth > 0) {
-        return window.innerWidth;
+function normalizeMapSizeSettings(settings) {
+    const source = settings || DEFAULT_MAP_SIZE_SETTINGS;
+    let minCols = Math.floor(Number.isFinite(source.minCols) ? source.minCols : DEFAULT_MAP_SIZE_SETTINGS.minCols);
+    let minRows = Math.floor(Number.isFinite(source.minRows) ? source.minRows : DEFAULT_MAP_SIZE_SETTINGS.minRows);
+    let maxCols = Math.floor(Number.isFinite(source.maxCols) ? source.maxCols : DEFAULT_MAP_SIZE_SETTINGS.maxCols);
+    let maxRows = Math.floor(Number.isFinite(source.maxRows) ? source.maxRows : DEFAULT_MAP_SIZE_SETTINGS.maxRows);
+
+    minCols = clamp(minCols, MAP_COLS_MIN, MAP_COLS_MAX);
+    maxCols = clamp(maxCols, MAP_COLS_MIN, MAP_COLS_MAX);
+    minRows = clamp(minRows, MAP_ROWS_MIN, MAP_ROWS_MAX);
+    maxRows = clamp(maxRows, MAP_ROWS_MIN, MAP_ROWS_MAX);
+
+    if (minCols > maxCols) {
+        if (settings && Number.isFinite(settings.minCols) && !Number.isFinite(settings.maxCols)) {
+            maxCols = minCols;
+        } else {
+            minCols = maxCols;
+        }
     }
-    return getCanvasWidthForCols(BASE_COLS);
+
+    if (minRows > maxRows) {
+        if (settings && Number.isFinite(settings.minRows) && !Number.isFinite(settings.maxRows)) {
+            maxRows = minRows;
+        } else {
+            minRows = maxRows;
+        }
+    }
+
+    return { minCols, minRows, maxCols, maxRows };
 }
 
-function getTouchReferenceHeight() {
-    if (typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0) {
-        return window.innerHeight;
+function getMapSizeSettings() {
+    if (typeof MapSizeSettings !== 'undefined' && MapSizeSettings && typeof MapSizeSettings.load === 'function') {
+        return MapSizeSettings.load();
     }
-    return getCanvasHeightForRows(BASE_ROWS);
+    return normalizeMapSizeSettings(DEFAULT_MAP_SIZE_SETTINGS);
 }
 
 function setMapSize(cols, rows) {
@@ -80,6 +110,20 @@ function getTouchLayoutDefaults(canvasWidth, canvasHeight) {
             }
         }
     };
+}
+
+function getTouchReferenceWidth() {
+    if (typeof window !== 'undefined' && Number.isFinite(window.innerWidth) && window.innerWidth > 0) {
+        return window.innerWidth;
+    }
+    return getCanvasWidthForCols(BASE_COLS);
+}
+
+function getTouchReferenceHeight() {
+    if (typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0) {
+        return window.innerHeight;
+    }
+    return getCanvasHeightForRows(BASE_ROWS);
 }
 
 function syncTouchLayoutConstants() {

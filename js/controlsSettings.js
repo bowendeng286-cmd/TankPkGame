@@ -427,3 +427,83 @@ class ControlsSettings {
         return Number.isFinite(height) && height > 0 ? height : getTouchReferenceHeight();
     }
 }
+
+class MapSizeSettings {
+    static STORAGE_KEY = 'tankgame_map_size_settings';
+    static VERSION = 1;
+
+    static getDefault() {
+        return normalizeMapSizeSettings(DEFAULT_MAP_SIZE_SETTINGS);
+    }
+
+    static load() {
+        try {
+            const saved = localStorage.getItem(this.STORAGE_KEY);
+            if (!saved) return this.getDefault();
+
+            const raw = JSON.parse(saved);
+            const normalized = this._fromStoredConfig(raw);
+            if (!this.validate(normalized)) {
+                return this.getDefault();
+            }
+            return normalized;
+        } catch (e) {
+            console.warn('[MapSizeSettings] Failed to load config:', e);
+            return this.getDefault();
+        }
+    }
+
+    static save(config) {
+        try {
+            const normalized = normalizeMapSizeSettings(config);
+            if (!this.validate(normalized)) {
+                console.warn('[MapSizeSettings] Refusing to save invalid config');
+                return false;
+            }
+
+            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this._toStoredConfig(normalized)));
+            return true;
+        } catch (e) {
+            console.warn('[MapSizeSettings] Failed to save config:', e);
+            return false;
+        }
+    }
+
+    static validate(config) {
+        if (!config || typeof config !== 'object') return false;
+        if (!Number.isFinite(config.minCols) || !Number.isFinite(config.minRows)) return false;
+        if (!Number.isFinite(config.maxCols) || !Number.isFinite(config.maxRows)) return false;
+        if (config.minCols < MAP_COLS_MIN || config.minCols > MAP_COLS_MAX) return false;
+        if (config.maxCols < MAP_COLS_MIN || config.maxCols > MAP_COLS_MAX) return false;
+        if (config.minRows < MAP_ROWS_MIN || config.minRows > MAP_ROWS_MAX) return false;
+        if (config.maxRows < MAP_ROWS_MIN || config.maxRows > MAP_ROWS_MAX) return false;
+        if (config.minCols > config.maxCols) return false;
+        if (config.minRows > config.maxRows) return false;
+        return true;
+    }
+
+    static reset() {
+        const defaults = this.getDefault();
+        this.save(defaults);
+        return defaults;
+    }
+
+    static _toStoredConfig(config) {
+        return {
+            version: this.VERSION,
+            minCols: config.minCols,
+            minRows: config.minRows,
+            maxCols: config.maxCols,
+            maxRows: config.maxRows
+        };
+    }
+
+    static _fromStoredConfig(stored) {
+        return normalizeMapSizeSettings({
+            minCols: stored ? stored.minCols : null,
+            minRows: stored ? stored.minRows : null,
+            maxCols: stored ? stored.maxCols : null,
+            maxRows: stored ? stored.maxRows : null
+        });
+    }
+}

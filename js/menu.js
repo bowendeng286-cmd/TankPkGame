@@ -53,9 +53,11 @@ class Menu {
         this.page = 'main';
         this.settingsRow = 0;
         this.settingsMaxRow = 2;
+        this.mapSizeRow = 0;
         this.openSettings = false;
         this.openControlsConfig = false;
         this.singleControlIndex = SINGLE_PLAYER_CONTROL_OPTIONS.indexOf(loadSinglePlayerControlMode());
+        this.mapSizeSettings = getMapSizeSettings();
         if (this.singleControlIndex < 0) this.singleControlIndex = 0;
 
         this._input = null;
@@ -69,6 +71,8 @@ class Menu {
         this.page = 'main';
         this.openSettings = false;
         this.openControlsConfig = false;
+        this.mapSizeRow = 0;
+        this.mapSizeSettings = getMapSizeSettings();
         this._input = input;
         this._prevKeys = new Set();
 
@@ -167,7 +171,7 @@ class Menu {
 
     _updateSettings() {
         const input = this._input;
-        const items = this._getSettingsItems();
+        const items = this._getCurrentSettingsItems();
         const justPressed = (code) => {
             const down = input.isDown(code);
             const was = this._prevKeys.has(code);
@@ -186,19 +190,24 @@ class Menu {
         const confirmPressed = justPressed('Enter') || justPressed('Space');
         const escPressed = justPressed('Escape');
 
-        this.settingsMaxRow = items.length - 1;
-        if (upPressed) this.settingsRow = Math.max(0, this.settingsRow - 1);
-        if (downPressed) this.settingsRow = Math.min(this.settingsMaxRow, this.settingsRow + 1);
+        const maxRow = items.length - 1;
+        const currentRow = this._getCurrentSettingsRow();
+        if (this.page === 'settings') this.settingsMaxRow = maxRow;
+        if (upPressed) this._setCurrentSettingsRow(Math.max(0, currentRow - 1));
+        if (downPressed) this._setCurrentSettingsRow(Math.min(maxRow, currentRow + 1));
 
-        if (leftPressed) this._changeSettingsOption(this.settingsRow, -1);
-        if (rightPressed) this._changeSettingsOption(this.settingsRow, 1);
+        if (leftPressed) this._changeActiveSettingsOption(this._getCurrentSettingsRow(), -1);
+        if (rightPressed) this._changeActiveSettingsOption(this._getCurrentSettingsRow(), 1);
 
         if (confirmPressed) {
-            const selectedItem = items[this.settingsRow];
+            const selectedItem = items[this._getCurrentSettingsRow()];
             this._activateSettingsItem(selectedItem);
         }
 
-        if (escPressed) this._closeSettings();
+        if (escPressed) {
+            if (this.page === 'mapSize') this._closeMapSizeSettings();
+            else this._closeSettings();
+        }
     }
 
     _changeMainOption(row, direction) {
@@ -219,6 +228,54 @@ class Menu {
         if (item.setting === 'singleControl') this._cycleSinglePlayerControl(direction);
     }
 
+    _changeActiveSettingsOption(row, direction) {
+        if (this.page === 'mapSize') {
+            this._changeMapSizeOption(row, direction);
+            return;
+        }
+        this._changeSettingsOption(row, direction);
+    }
+
+    _changeMapSizeOption(row, direction) {
+        const item = this._getMapSizeItems()[row];
+        if (!item || item.kind !== 'adjust') return;
+
+        const next = Object.assign({}, this.mapSizeSettings);
+        const isCols = item.setting === 'minCols' || item.setting === 'maxCols';
+        const minValue = isCols ? MAP_COLS_MIN : MAP_ROWS_MIN;
+        const maxValue = isCols ? MAP_COLS_MAX : MAP_ROWS_MAX;
+        next[item.setting] = clamp(next[item.setting] + direction, minValue, maxValue);
+
+        if (item.setting === 'minCols' && next.minCols > next.maxCols) next.maxCols = next.minCols;
+        if (item.setting === 'maxCols' && next.maxCols < next.minCols) next.minCols = next.maxCols;
+        if (item.setting === 'minRows' && next.minRows > next.maxRows) next.maxRows = next.minRows;
+        if (item.setting === 'maxRows' && next.maxRows < next.minRows) next.minRows = next.maxRows;
+
+        this.mapSizeSettings = normalizeMapSizeSettings(next);
+        MapSizeSettings.save(this.mapSizeSettings);
+    }
+
+    _getCurrentSettingsItems() {
+        return this.page === 'mapSize' ? this._getMapSizeItems() : this._getSettingsItems();
+    }
+
+    _getCurrentSettingsRow() {
+        return this.page === 'mapSize' ? this.mapSizeRow : this.settingsRow;
+    }
+
+    _setCurrentSettingsRow(value) {
+        if (this.page === 'mapSize') this.mapSizeRow = value;
+        else this.settingsRow = value;
+    }
+
+    _getCurrentSettingsTitle() {
+        return this.page === 'mapSize' ? t('mapSize') : t('settingsTitle');
+    }
+
+    _getCurrentSettingsSubtitle() {
+        return this.page === 'mapSize' ? t('mapSizeSubtitle') : t('settingsSubtitle');
+    }
+
     _startGame() {
         const mode = MODES[this.modeIndex];
         this.result = {
@@ -235,6 +292,16 @@ class Menu {
         this.page = 'settings';
         this.settingsRow = 0;
         this.openSettings = true;
+    }
+
+    _openMapSizeSettings() {
+        this.page = 'mapSize';
+        this.mapSizeRow = 0;
+        this.mapSizeSettings = getMapSizeSettings();
+    }
+
+    _closeMapSizeSettings() {
+        this.page = 'settings';
     }
 
     _closeSettings() {
@@ -263,15 +330,15 @@ class Menu {
 
     _handleSettingsTouch(x, y) {
         const layout = this._getTouchSettingsLayout();
-        const items = this._getSettingsItems();
+        const items = this._getCurrentSettingsItems();
 
         for (let i = 0; i < layout.options.length; i++) {
             const card = layout.options[i];
             if (!this._isInRect(x, y, card)) continue;
 
-            this.settingsRow = i;
+            this._setCurrentSettingsRow(i);
             if (card.kind === 'adjust') {
-                this._changeSettingsOption(i, x < card.x + card.w / 2 ? -1 : 1);
+                this._changeActiveSettingsOption(i, x < card.x + card.w / 2 ? -1 : 1);
             } else {
                 this._activateSettingsItem(items[i]);
             }
@@ -285,14 +352,20 @@ class Menu {
             this.openControlsConfig = true;
             return;
         }
+        if (item.kind === 'action' && item.action === 'mapSize') {
+            this._openMapSizeSettings();
+            return;
+        }
         if (item.kind === 'action' && item.action === 'switchUiMode') {
             this._switchUiMode(item.mode);
             return;
         }
         if (item.kind === 'back') {
-            this._closeSettings();
+            if (this.page === 'mapSize') this._closeMapSizeSettings();
+            else this._closeSettings();
         }
     }
+
 
     _switchUiMode(mode) {
         if (!this._input || typeof this._input.setUiMode !== 'function') return;
@@ -360,15 +433,18 @@ class Menu {
         ctx.textAlign = 'center';
         ctx.font = 'bold 40px monospace';
         ctx.fillStyle = Theme.colors.text.primary;
-        ctx.fillText(t('settingsTitle'), CANVAS_W / 2, 100);
+        ctx.fillText(this._getCurrentSettingsTitle(), CANVAS_W / 2, 100);
+        ctx.font = '14px monospace';
+        ctx.fillStyle = Theme.colors.text.hint;
+        ctx.fillText(this._getCurrentSettingsSubtitle(), CANVAS_W / 2, 126);
 
-        const startY = 200;
+        const startY = 210;
         const gap = 60;
-        const items = this._getSettingsItems();
+        const items = this._getCurrentSettingsItems();
 
         for (let i = 0; i < items.length; i++) {
             const y = startY + i * gap;
-            const selected = i === this.settingsRow;
+            const selected = i === this._getCurrentSettingsRow();
             ctx.font = selected ? 'bold 22px monospace' : '20px monospace';
             ctx.fillStyle = selected ? Theme.colors.tanks[0] : Theme.colors.text.secondary;
             const label = this._getSettingsItemLabel(items[i]);
@@ -381,6 +457,7 @@ class Menu {
         ctx.fillStyle = Theme.colors.text.hint;
         ctx.fillText(t('navHint'), CANVAS_W / 2, CANVAS_H - 20);
     }
+
 
     _drawTouchMain(ctx) {
         const layout = this._getTouchMainLayout();
@@ -436,7 +513,7 @@ class Menu {
 
     _drawTouchSettings(ctx) {
         const layout = this._getTouchSettingsLayout();
-        const items = this._getSettingsItems();
+        const items = this._getCurrentSettingsItems();
 
         this._drawTouchBoard(ctx, layout.leftPanel, Theme.colors.tanks[1]);
         this._drawTouchBoard(ctx, layout.rightPanel, Theme.colors.tanks[0]);
@@ -446,10 +523,10 @@ class Menu {
         ctx.textBaseline = 'top';
         ctx.fillStyle = Theme.colors.text.primary;
         ctx.font = 'bold 34px monospace';
-        ctx.fillText(t('settingsTitle'), layout.leftPanel.x + layout.leftPanel.w / 2, layout.leftPanel.y + 22);
+        ctx.fillText(this._getCurrentSettingsTitle(), layout.leftPanel.x + layout.leftPanel.w / 2, layout.leftPanel.y + 22);
         ctx.fillStyle = Theme.colors.text.hint;
         ctx.font = '14px monospace';
-        ctx.fillText(t('settingsSubtitle'), layout.leftPanel.x + layout.leftPanel.w / 2, layout.leftPanel.y + 56);
+        ctx.fillText(this._getCurrentSettingsSubtitle(), layout.leftPanel.x + layout.leftPanel.w / 2, layout.leftPanel.y + 56);
         const lineY = layout.leftPanel.y + 82;
         const lineW = Math.min(220, layout.leftPanel.w - 56);
         const grad = ctx.createLinearGradient(
@@ -469,7 +546,7 @@ class Menu {
 
         for (let i = 0; i < layout.options.length; i++) {
             const card = layout.options[i];
-            const selected = i === this.settingsRow;
+            const selected = i === this._getCurrentSettingsRow();
             const item = items[i];
 
             if (item.kind === 'adjust') {
@@ -478,7 +555,8 @@ class Menu {
                 const accent = item.setting === 'language'
                     ? Theme.colors.tanks[1]
                     : (item.setting === 'theme' ? (Theme.colors.tanks[2] || Theme.colors.tanks[0]) : Theme.colors.tanks[0]);
-                this._drawTouchOptionCard(ctx, card, label, value, t('touchHint'), selected, accent);
+                const subtitle = this.page === 'mapSize' ? t('mapSizeHint') : t('touchHint');
+                this._drawTouchOptionCard(ctx, card, label, value, subtitle, selected, accent);
             } else if (item.kind === 'controls') {
                 this._drawTouchActionCard(
                     ctx,
@@ -505,7 +583,7 @@ class Menu {
                     ctx,
                     card,
                     this._plainLabel(t('back')),
-                    t('touchHint'),
+                    this.page === 'mapSize' ? t('mapSizeHint') : t('touchHint'),
                     selected,
                     Theme.colors.text.secondary,
                     false
@@ -546,17 +624,41 @@ class Menu {
         const border = selected
             ? colorWithAlpha(accentColor, 0.5)
             : TouchUI.surfaceStroke(1);
-        const compact = card.w < 220;
-        const spacious = card.h >= 108;
-        const sidePad = compact ? 12 : (spacious ? 22 : 18);
-        const topTextY = compact ? 24 : (spacious ? 30 : 26);
-        const subTextY = compact ? 42 : (spacious ? 50 : 46);
-        const arrowW = compact ? 34 : (spacious ? 44 : 40);
-        const controlH = compact ? 22 : (spacious ? 30 : 24);
-        const gap = compact ? 8 : 10;
-        const controlY = card.y + card.h - (compact ? 32 : (spacious ? 44 : 38));
+        const compact = card.w < 220 || card.h < 90;
+        const spacious = card.h >= 108 && card.w >= 300;
+        const sidePad = compact ? 10 : (spacious ? 22 : 18);
+        const topTextY = compact ? 22 : (spacious ? 30 : 26);
+        const subTextY = compact ? 38 : (spacious ? 50 : 46);
+        const arrowW = compact ? 30 : (spacious ? 44 : 40);
+        const controlH = compact ? 20 : (spacious ? 30 : 24);
+        const gap = compact ? 6 : 10;
+        const controlBottomPad = compact ? 10 : (spacious ? 14 : 12);
+        const controlY = card.y + card.h - controlH - controlBottomPad;
         const valueW = Math.max(44, card.w - sidePad * 2 - arrowW * 2 - gap * 2);
         const valueX = card.x + sidePad + arrowW + gap;
+        const labelFont = this._fitTouchCardFont(
+            ctx,
+            label,
+            card.w - sidePad * 2,
+            selected
+                ? (compact ? [16, 15, 14, 13] : [19, 18, 17, 16, 15, 14])
+                : (compact ? [15, 14, 13] : [18, 17, 16, 15, 14]),
+            true
+        );
+        const subtitleFont = this._fitTouchCardFont(
+            ctx,
+            subtitle,
+            card.w - sidePad * 2,
+            compact ? [10, 9] : [12, 11, 10],
+            false
+        );
+        const valueFont = this._fitTouchCardFont(
+            ctx,
+            value,
+            valueW - 12,
+            compact ? [12, 11, 10] : [13, 12, 11],
+            true
+        );
 
         TouchUI.drawPanel(ctx, card.x, card.y, card.w, card.h, {
             radius: card.radius,
@@ -573,34 +675,35 @@ class Menu {
             textColor: Theme.colors.text.primary,
             fillOpacity: selected ? 0.2 : 0.12,
             borderOpacity: selected ? 0.5 : 0.25,
-            font: compact ? 'bold 13px monospace' : 'bold 14px monospace'
+            font: compact ? 'bold 12px monospace' : 'bold 14px monospace'
         });
         TouchUI.drawPill(ctx, card.x + card.w - sidePad - arrowW, controlY, arrowW, controlH, '>', {
             accentColor,
             textColor: Theme.colors.text.primary,
             fillOpacity: selected ? 0.2 : 0.12,
             borderOpacity: selected ? 0.5 : 0.25,
-            font: compact ? 'bold 13px monospace' : 'bold 14px monospace'
+            font: compact ? 'bold 12px monospace' : 'bold 14px monospace'
         });
         TouchUI.drawPill(ctx, valueX, controlY, valueW, controlH, value, {
             accentColor,
             textColor: Theme.colors.text.primary,
             fillOpacity: selected ? 0.18 : 0.1,
             borderOpacity: selected ? 0.44 : 0.22,
-            font: compact ? 'bold 12px monospace' : 'bold 13px monospace'
+            font: valueFont
         });
 
         ctx.save();
+        ctx.beginPath();
+        ctx.rect(card.x + sidePad, card.y + 10, card.w - sidePad * 2, Math.max(20, controlY - card.y - 16));
+        ctx.clip();
         ctx.textAlign = 'left';
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = Theme.colors.text.primary;
-        ctx.font = selected
-            ? (compact ? 'bold 16px monospace' : 'bold 19px monospace')
-            : (compact ? 'bold 15px monospace' : 'bold 18px monospace');
+        ctx.font = labelFont;
         ctx.fillText(label, card.x + sidePad, card.y + topTextY);
 
         ctx.fillStyle = Theme.colors.text.hint;
-        ctx.font = compact ? '11px monospace' : '12px monospace';
+        ctx.font = subtitleFont;
         ctx.fillText(subtitle, card.x + sidePad, card.y + subTextY);
         ctx.restore();
     }
@@ -612,13 +715,30 @@ class Menu {
         const border = primary
             ? colorWithAlpha(accentColor, 0.48)
             : (selected ? colorWithAlpha(accentColor, 0.36) : TouchUI.surfaceStroke(1));
-        const spacious = card.h >= 92;
-        const okW = primary ? 82 : 76;
-        const okH = primary ? 30 : 28;
-        const okX = card.x + card.w - okW - 20;
-        const okY = card.y + 16;
-        const titleY = card.y + (primary ? 40 : (spacious ? 34 : 28));
-        const subtitleY = card.y + (primary ? 66 : (spacious ? 58 : 48));
+        const compact = !primary && (card.h < 88 || card.w < 360);
+        const spacious = !compact && card.h >= 92;
+        const okW = primary ? 82 : (compact ? 62 : 76);
+        const okH = primary ? 30 : (compact ? 24 : 28);
+        const okX = card.x + card.w - okW - (compact ? 16 : 20);
+        const okY = card.y + (compact ? 12 : 16);
+        const titleX = card.x + (compact ? 18 : 22);
+        const textMaxW = Math.max(80, okX - titleX - 12);
+        const titleY = card.y + (primary ? 40 : (compact ? 28 : (spacious ? 34 : 28)));
+        const subtitleY = card.y + (primary ? 66 : (compact ? 48 : (spacious ? 58 : 48)));
+        const titleFont = this._fitTouchCardFont(
+            ctx,
+            label,
+            textMaxW,
+            primary ? [24, 22, 20, 18] : (compact ? [18, 17, 16, 15, 14] : [22, 20, 18, 16]),
+            true
+        );
+        const subtitleFont = this._fitTouchCardFont(
+            ctx,
+            subtitle,
+            textMaxW,
+            primary ? [13, 12, 11] : (compact ? [11, 10, 9] : [12, 11, 10]),
+            false
+        );
 
         TouchUI.drawPanel(ctx, card.x, card.y, card.w, card.h, {
             radius: card.radius,
@@ -634,19 +754,23 @@ class Menu {
             accentColor,
             textColor: Theme.colors.text.primary,
             fillOpacity: primary ? 0.2 : 0.12,
-            borderOpacity: primary ? 0.44 : 0.24
+            borderOpacity: primary ? 0.44 : 0.24,
+            font: compact ? 'bold 11px monospace' : undefined
         });
 
         ctx.save();
+        ctx.beginPath();
+        ctx.rect(titleX, card.y + 8, textMaxW, card.h - 16);
+        ctx.clip();
         ctx.textAlign = 'left';
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = Theme.colors.text.primary;
-        ctx.font = primary ? 'bold 24px monospace' : (spacious ? 'bold 22px monospace' : 'bold 20px monospace');
-        ctx.fillText(label, card.x + 22, titleY);
+        ctx.font = titleFont;
+        ctx.fillText(label, titleX, titleY);
 
         ctx.fillStyle = Theme.colors.text.hint;
-        ctx.font = primary ? '13px monospace' : '12px monospace';
-        ctx.fillText(subtitle, card.x + 22, subtitleY);
+        ctx.font = subtitleFont;
+        ctx.fillText(subtitle, titleX, subtitleY);
         ctx.restore();
     }
 
@@ -700,7 +824,7 @@ class Menu {
 
 
     _getTouchSettingsLayout() {
-        const items = this._getSettingsItems();
+        const items = this._getCurrentSettingsItems();
         const contentX = 40;
         const contentY = 90;
         const contentW = CANVAS_W - 80;
@@ -714,25 +838,34 @@ class Menu {
         const leftCardX = leftPanel.x + innerPad;
         const leftCardW = leftPanel.w - innerPad * 2;
         const leftCardY = leftPanel.y + 108;
-        const leftCardH = 92;
+        const leftCardH = this.page === 'mapSize' ? 98 : 92;
         const leftGap = 12;
         const noteY = leftCardY + (leftCardH + leftGap) * Math.min(2, items.length) + 6;
         const noteH = leftPanel.y + leftPanel.h - innerPad - noteY;
         const rightCardX = rightPanel.x + innerPad;
         const rightCardW = rightPanel.w - innerPad * 2;
-        const rightStartY = rightPanel.y + 26;
-        const rightGap = 12;
+        const rightCount = Math.max(0, items.length - 2);
+        const rightTopPad = 26;
+        const rightBottomPad = 26;
+        const rightGap = rightCount > 3 ? 10 : 12;
+        const backH = rightCount > 3 ? 68 : 82;
+        const rightNormalCount = Math.max(0, rightCount - 1);
+        const rightAvailable = panelH - rightTopPad - rightBottomPad - rightGap * Math.max(0, rightCount - 1) - backH;
+        const rightCardH = rightNormalCount > 0
+            ? Math.max(rightCount > 3 ? 76 : 88, Math.min(96, Math.floor(rightAvailable / rightNormalCount)))
+            : 96;
+        const rightStartY = rightPanel.y + rightTopPad;
         const options = [];
+        let nextRightY = rightStartY;
 
         for (let i = 0; i < items.length; i++) {
             if (i < 2) {
                 options.push({ x: leftCardX, y: leftCardY + i * (leftCardH + leftGap), w: leftCardW, h: leftCardH, radius: 22, kind: items[i].kind });
             } else {
                 const item = items[i];
-                const h = item.kind === 'back' ? 82 : 96;
-                const offsetIndex = i - 2;
-                const y = rightStartY + offsetIndex * (96 + rightGap);
-                options.push({ x: rightCardX, y, w: rightCardW, h, radius: 22, kind: item.kind });
+                const h = item.kind === 'back' ? backH : rightCardH;
+                options.push({ x: rightCardX, y: nextRightY, w: rightCardW, h, radius: 22, kind: item.kind });
+                nextRightY += h + rightGap;
             }
         }
 
@@ -748,7 +881,8 @@ class Menu {
     _getSettingsItems() {
         const items = [
             { kind: 'adjust', setting: 'language' },
-            { kind: 'adjust', setting: 'theme' }
+            { kind: 'adjust', setting: 'theme' },
+            { kind: 'action', action: 'mapSize' }
         ];
 
         if (this._input && this._input.touchEnabled) {
@@ -767,14 +901,29 @@ class Menu {
         return items;
     }
 
+    _getMapSizeItems() {
+        return [
+            { kind: 'adjust', setting: 'minCols' },
+            { kind: 'adjust', setting: 'minRows' },
+            { kind: 'adjust', setting: 'maxCols' },
+            { kind: 'adjust', setting: 'maxRows' },
+            { kind: 'back' }
+        ];
+    }
+
     _getSettingsItemLabel(item) {
         if (item.kind === 'back') return t('back');
         if (item.kind === 'controls') return t('controlsConfig');
+        if (item.kind === 'action' && item.action === 'mapSize') return t('mapSize');
         if (item.kind === 'action' && item.mode === 'desktop') return t('switchToDesktopUi');
         if (item.kind === 'action' && item.mode === 'touch') return t('switchToTouchUi');
         if (item.setting === 'language') return t('language');
         if (item.setting === 'theme') return t('theme');
         if (item.setting === 'singleControl') return t('singlePlayerControl');
+        if (item.setting === 'minCols') return t('mapSizeMinCols');
+        if (item.setting === 'minRows') return t('mapSizeMinRows');
+        if (item.setting === 'maxCols') return t('mapSizeMaxCols');
+        if (item.setting === 'maxRows') return t('mapSizeMaxRows');
         return '';
     }
 
@@ -783,11 +932,16 @@ class Menu {
         if (item.setting === 'language') return t('langName');
         if (item.setting === 'theme') return t(Theme.current === 'light' ? 'themeLight' : 'themeDark');
         if (item.setting === 'singleControl') return t(this._getSinglePlayerControlMode());
+        if (item.setting === 'minCols') return `${this.mapSizeSettings.minCols}${t('mapSizeValueSuffix')}`;
+        if (item.setting === 'minRows') return `${this.mapSizeSettings.minRows}${t('mapSizeValueSuffix')}`;
+        if (item.setting === 'maxCols') return `${this.mapSizeSettings.maxCols}${t('mapSizeValueSuffix')}`;
+        if (item.setting === 'maxRows') return `${this.mapSizeSettings.maxRows}${t('mapSizeValueSuffix')}`;
         return '';
     }
 
     _getTouchSettingsActionSubtitle(item) {
         if (item.kind === 'controls') return t('controlsSubtitle');
+        if (item.kind === 'action' && item.action === 'mapSize') return t('mapSizeSubtitle');
         if (item.kind === 'action' && item.mode === 'desktop') return t('switchToDesktopUiHint');
         if (item.kind === 'action' && item.mode === 'touch') return t('switchToTouchUiHint');
         return t('touchHint');
@@ -818,6 +972,17 @@ class Menu {
 
     _plainLabel(text) {
         return text.replace(/\[/g, '').replace(/\]/g, '').trim();
+    }
+
+    _fitTouchCardFont(ctx, text, maxWidth, sizes, bold) {
+        const safeText = text || '';
+        const safeSizes = sizes && sizes.length ? sizes : [12];
+        for (let i = 0; i < safeSizes.length; i++) {
+            const font = `${bold ? 'bold ' : ''}${safeSizes[i]}px monospace`;
+            ctx.font = font;
+            if (ctx.measureText(safeText).width <= maxWidth) return font;
+        }
+        return `${bold ? 'bold ' : ''}${safeSizes[safeSizes.length - 1]}px monospace`;
     }
 
     _isInRect(x, y, rect) {
