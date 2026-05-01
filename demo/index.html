@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>手机端主界面横屏 Demo 导航</title>
+    <style>
+        :root {
+            --bg: #2b2b2b;
+            --panel: rgba(24, 24, 24, 0.92);
+            --stroke: rgba(255,255,255,0.12);
+            --inner: rgba(255,255,255,0.05);
+            --text: #e0e0e0;
+            --text-2: #b0b0b0;
+            --hint: #888888;
+            --red: #e57368;
+            --blue: #6bb6e8;
+            --green: #5fd68d;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Consolas, "Courier New", monospace;
+        }
+
+        body {
+            padding: 18px calc(18px + env(safe-area-inset-right)) 30px calc(18px + env(safe-area-inset-left));
+            background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0);
+            background-size: 28px 28px;
+        }
+
+        .wrap {
+            max-width: 1040px;
+            margin: 0 auto;
+        }
+
+        .hero {
+            border-radius: 28px;
+            border: 1.5px solid rgba(229,115,104,0.22);
+            background: var(--panel);
+            box-shadow: inset 0 0 0 1px var(--inner);
+            padding: 22px 20px;
+            margin-bottom: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before,
+        .card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0);
+            background-size: 28px 28px;
+            opacity: 0.35;
+            pointer-events: none;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(229,115,104,0.14);
+            border: 1.2px solid rgba(229,115,104,0.42);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        h1 {
+            margin: 16px 0 6px;
+            font-size: clamp(28px, 5vw, 42px);
+            line-height: 1;
+        }
+
+        .subtitle {
+            color: var(--hint);
+            font-size: 14px;
+        }
+
+        .line {
+            width: 240px;
+            max-width: 80%;
+            height: 2px;
+            margin-top: 14px;
+            background: linear-gradient(90deg, rgba(229,115,104,0), rgba(229,115,104,0.95), rgba(229,115,104,0));
+        }
+
+        .lead {
+            margin-top: 16px;
+            color: var(--text-2);
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            position: relative;
+            overflow: hidden;
+            display: block;
+            text-decoration: none;
+            color: inherit;
+            border-radius: 26px;
+            padding: 18px 16px;
+            background: var(--panel);
+            border: 1.5px solid var(--stroke);
+            box-shadow: inset 0 0 0 1px var(--inner);
+            min-height: 230px;
+        }
+
+        .card.a { border-color: rgba(229,115,104,0.34); }
+        .card.b { border-color: rgba(107,182,232,0.34); }
+        .card.c { border-color: rgba(95,214,141,0.34); }
+
+        .pill {
+            display: inline-block;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .a .pill { background: rgba(229,115,104,0.14); border: 1px solid rgba(229,115,104,0.4); }
+        .b .pill { background: rgba(107,182,232,0.14); border: 1px solid rgba(107,182,232,0.4); }
+        .c .pill { background: rgba(95,214,141,0.14); border: 1px solid rgba(95,214,141,0.4); }
+
+        .title {
+            font-size: 23px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .desc {
+            color: var(--text-2);
+            font-size: 13px;
+            line-height: 1.8;
+            margin-bottom: 14px;
+        }
+
+        .list {
+            color: var(--hint);
+            font-size: 13px;
+            line-height: 1.8;
+        }
+
+        .foot {
+            margin-top: 16px;
+            color: var(--hint);
+            font-size: 13px;
+            line-height: 1.8;
+        }
+    </style>
+</head>
+<body>
+    <main class="wrap">
+        <section class="hero">
+            <span class="tag">横屏优先 · 贴近原程序风格</span>
+            <h1>手机端主界面 Demo 导航</h1>
+            <div class="subtitle">保持现有菜单语言，不再做脱离游戏本体的网页风样式</div>
+            <div class="line"></div>
+            <div class="lead">这 3 个 demo 都按“手机默认横屏使用”来设计，并统一贴近现有 [TouchUI](js/utils.js:119)、[Theme](js/theme.js:3) 和 [js/menu.js](js/menu.js) 的风格：深灰背景、点阵面板、等宽字体、红蓝绿点缀、轻描边和低强度发光。</div>
+        </section>
+
+        <section class="grid">
+            <a class="card a" href="./mobile-menu-demo-a.html">
+                <span class="pill">方案 A</span>
+                <div class="title">横屏稳妥放大版</div>
+                <div class="desc">左侧标题说明，右侧完整主菜单面板。最接近当前正式界面，只是横屏下更大、更松。</div>
+                <div class="list">
+                    • 最容易直接落地到正式菜单<br>
+                    • 参数与按钮都完整展开<br>
+                    • 风险最小
+                </div>
+            </a>
+
+            <a class="card b" href="./mobile-menu-demo-b.html">
+                <span class="pill">方案 B</span>
+                <div class="title">横屏主按钮突出版</div>
+                <div class="desc">左侧集中切换参数，右侧放大“开始游戏”和“设置”，强化横屏中的主操作区。</div>
+                <div class="list">
+                    • 开始区更醒目<br>
+                    • 更适合横屏右侧确认动作<br>
+                    • 仍保留原风格
+                </div>
+            </a>
+
+            <a class="card c" href="./mobile-menu-demo-c.html">
+                <span class="pill">方案 C</span>
+                <div class="title">横屏快速开局版</div>
+                <div class="desc">中间优先“开始游戏”，右侧再放次级设置，适合想让首屏更清爽的方向。</div>
+                <div class="list">
+                    • 首屏信息压力最小<br>
+                    • 更偏先开局再微调<br>
+                    • 参数不是首屏主角
+                </div>
+            </a>
+        </section>
+
+        <div class="foot">建议你横屏打开后重点比较：整体是否像原游戏 UI、字是不是够大、开始按钮是否更容易定位、参数区是否还会显得拥挤。</div>
+    </main>
+</body>
+</html>

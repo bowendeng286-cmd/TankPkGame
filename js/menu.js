@@ -384,41 +384,88 @@ class Menu {
 
     _drawTouchMain(ctx) {
         const layout = this._getTouchMainLayout();
-        TouchUI.drawTitle(ctx, t('title'), t('subtitle'), Theme.colors.tanks[0], 40);
-        this._drawTouchBoard(ctx, layout.board, Theme.colors.tanks[0]);
-
         const optionColors = [Theme.colors.tanks[0], Theme.colors.tanks[1], Theme.colors.tanks[2] || Theme.colors.tanks[0]];
         const items = [
-            { label: t('mode'), value: t(MODES[this.modeIndex].key), subtitle: t('touchHint') },
-            { label: t('winScore'), value: String(WIN_SCORES[this.scoreIndex]), subtitle: t('touchHint') },
-            { label: t('aiDifficulty'), value: t(DIFFICULTIES[this.diffIndex]), subtitle: t('touchHint') },
+            { label: t('mode'), value: t(MODES[this.modeIndex].key), subtitle: '' },
+            { label: t('winScore'), value: String(WIN_SCORES[this.scoreIndex]), subtitle: '' },
+            { label: t('aiDifficulty'), value: t(DIFFICULTIES[this.diffIndex]), subtitle: '' },
             { label: this._plainLabel(t('startGame')), subtitle: `${t(MODES[this.modeIndex].key)} / ${WIN_SCORES[this.scoreIndex]}` },
             { label: this._plainLabel(t('settings')), subtitle: t('settingsSubtitle') },
         ];
 
-        for (let i = 0; i < layout.options.length; i++) {
-            const card = layout.options[i];
-            if (i < 3) {
-                this._drawTouchOptionCard(ctx, card, items[i].label, items[i].value, items[i].subtitle, i === this.row, optionColors[i]);
-            } else {
-                this._drawTouchActionCard(ctx, card, items[i].label, items[i].subtitle, i === this.row, i === 3 ? Theme.colors.tanks[0] : Theme.colors.tanks[1], i === 3);
-            }
-        }
+        this._drawTouchBoard(ctx, layout.leftPanel, Theme.colors.tanks[1]);
+        this._drawTouchBoard(ctx, layout.rightPanel, Theme.colors.tanks[0]);
 
         ctx.save();
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = Theme.colors.text.primary;
+        ctx.font = 'bold 42px monospace';
+        ctx.fillText(t('title'), layout.leftPanel.x + layout.leftPanel.w / 2, layout.leftPanel.y + 26);
         ctx.fillStyle = Theme.colors.text.hint;
-        ctx.font = '13px monospace';
-        ctx.fillText(t('touchHint'), CANVAS_W / 2, 565);
+        ctx.font = '14px monospace';
+        ctx.fillText(t('subtitle'), layout.leftPanel.x + layout.leftPanel.w / 2, layout.leftPanel.y + 68);
+        const lineY = layout.leftPanel.y + 96;
+        const lineW = Math.min(250, layout.leftPanel.w - 72);
+        const grad = ctx.createLinearGradient(
+            layout.leftPanel.x + layout.leftPanel.w / 2 - lineW / 2, lineY,
+            layout.leftPanel.x + layout.leftPanel.w / 2 + lineW / 2, lineY
+        );
+        grad.addColorStop(0, colorWithAlpha(Theme.colors.tanks[1], 0));
+        grad.addColorStop(0.5, colorWithAlpha(Theme.colors.tanks[1], 0.95));
+        grad.addColorStop(1, colorWithAlpha(Theme.colors.tanks[1], 0));
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(layout.leftPanel.x + layout.leftPanel.w / 2 - lineW / 2, lineY);
+        ctx.lineTo(layout.leftPanel.x + layout.leftPanel.w / 2 + lineW / 2, lineY);
+        ctx.stroke();
         ctx.restore();
+
+        for (let i = 0; i < 3; i++) {
+            const card = layout.options[i];
+            this._drawTouchOptionCard(ctx, card, items[i].label, items[i].value, items[i].subtitle, i === this.row, optionColors[i]);
+        }
+
+        for (let i = 3; i < layout.options.length; i++) {
+            const card = layout.options[i];
+            this._drawTouchActionCard(ctx, card, items[i].label, items[i].subtitle, i === this.row, i === 3 ? Theme.colors.tanks[0] : Theme.colors.tanks[1], i === 3);
+        }
+
     }
 
     _drawTouchSettings(ctx) {
         const layout = this._getTouchSettingsLayout();
         const items = this._getSettingsItems();
-        TouchUI.drawTitle(ctx, t('settingsTitle'), t('settingsSubtitle'), Theme.colors.tanks[1], 42);
-        this._drawTouchBoard(ctx, layout.board, Theme.colors.tanks[1]);
+
+        this._drawTouchBoard(ctx, layout.leftPanel, Theme.colors.tanks[1]);
+        this._drawTouchBoard(ctx, layout.rightPanel, Theme.colors.tanks[0]);
+
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = Theme.colors.text.primary;
+        ctx.font = 'bold 34px monospace';
+        ctx.fillText(t('settingsTitle'), layout.leftPanel.x + layout.leftPanel.w / 2, layout.leftPanel.y + 22);
+        ctx.fillStyle = Theme.colors.text.hint;
+        ctx.font = '14px monospace';
+        ctx.fillText(t('settingsSubtitle'), layout.leftPanel.x + layout.leftPanel.w / 2, layout.leftPanel.y + 56);
+        const lineY = layout.leftPanel.y + 82;
+        const lineW = Math.min(220, layout.leftPanel.w - 56);
+        const grad = ctx.createLinearGradient(
+            layout.leftPanel.x + layout.leftPanel.w / 2 - lineW / 2, lineY,
+            layout.leftPanel.x + layout.leftPanel.w / 2 + lineW / 2, lineY
+        );
+        grad.addColorStop(0, colorWithAlpha(Theme.colors.tanks[1], 0));
+        grad.addColorStop(0.5, colorWithAlpha(Theme.colors.tanks[1], 0.95));
+        grad.addColorStop(1, colorWithAlpha(Theme.colors.tanks[1], 0));
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(layout.leftPanel.x + layout.leftPanel.w / 2 - lineW / 2, lineY);
+        ctx.lineTo(layout.leftPanel.x + layout.leftPanel.w / 2 + lineW / 2, lineY);
+        ctx.stroke();
+        ctx.restore();
 
         for (let i = 0; i < layout.options.length; i++) {
             const card = layout.options[i];
@@ -437,7 +484,7 @@ class Menu {
                     ctx,
                     card,
                     t('controlsConfig'),
-                    t('controlsSubtitle'),
+                    '',
                     selected,
                     Theme.colors.tanks[0],
                     false
@@ -465,15 +512,8 @@ class Menu {
                 );
             }
         }
-
-        ctx.save();
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = Theme.colors.text.hint;
-        ctx.font = '13px monospace';
-        ctx.fillText(t('touchHint'), CANVAS_W / 2, 560);
-        ctx.restore();
     }
+
 
     _drawTouchBoard(ctx, board, accentColor) {
         TouchUI.drawPanel(ctx, board.x, board.y, board.w, board.h, {
@@ -506,6 +546,17 @@ class Menu {
         const border = selected
             ? colorWithAlpha(accentColor, 0.5)
             : TouchUI.surfaceStroke(1);
+        const compact = card.w < 220;
+        const spacious = card.h >= 108;
+        const sidePad = compact ? 12 : (spacious ? 22 : 18);
+        const topTextY = compact ? 24 : (spacious ? 30 : 26);
+        const subTextY = compact ? 42 : (spacious ? 50 : 46);
+        const arrowW = compact ? 34 : (spacious ? 44 : 40);
+        const controlH = compact ? 22 : (spacious ? 30 : 24);
+        const gap = compact ? 8 : 10;
+        const controlY = card.y + card.h - (compact ? 32 : (spacious ? 44 : 38));
+        const valueW = Math.max(44, card.w - sidePad * 2 - arrowW * 2 - gap * 2);
+        const valueX = card.x + sidePad + arrowW + gap;
 
         TouchUI.drawPanel(ctx, card.x, card.y, card.w, card.h, {
             radius: card.radius,
@@ -517,35 +568,40 @@ class Menu {
             glowWidth: 2
         });
 
-        TouchUI.drawPill(ctx, card.x + 18, card.y + 15, 34, 28, '<', {
+        TouchUI.drawPill(ctx, card.x + sidePad, controlY, arrowW, controlH, '<', {
             accentColor,
             textColor: Theme.colors.text.primary,
             fillOpacity: selected ? 0.2 : 0.12,
-            borderOpacity: selected ? 0.5 : 0.25
+            borderOpacity: selected ? 0.5 : 0.25,
+            font: compact ? 'bold 13px monospace' : 'bold 14px monospace'
         });
-        TouchUI.drawPill(ctx, card.x + card.w - 52, card.y + 15, 34, 28, '>', {
+        TouchUI.drawPill(ctx, card.x + card.w - sidePad - arrowW, controlY, arrowW, controlH, '>', {
             accentColor,
             textColor: Theme.colors.text.primary,
             fillOpacity: selected ? 0.2 : 0.12,
-            borderOpacity: selected ? 0.5 : 0.25
+            borderOpacity: selected ? 0.5 : 0.25,
+            font: compact ? 'bold 13px monospace' : 'bold 14px monospace'
         });
-        TouchUI.drawPill(ctx, card.x + card.w - 240, card.y + 15, 170, 28, value, {
+        TouchUI.drawPill(ctx, valueX, controlY, valueW, controlH, value, {
             accentColor,
             textColor: Theme.colors.text.primary,
             fillOpacity: selected ? 0.18 : 0.1,
-            borderOpacity: selected ? 0.44 : 0.22
+            borderOpacity: selected ? 0.44 : 0.22,
+            font: compact ? 'bold 12px monospace' : 'bold 13px monospace'
         });
 
         ctx.save();
         ctx.textAlign = 'left';
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = Theme.colors.text.primary;
-        ctx.font = selected ? 'bold 18px monospace' : 'bold 17px monospace';
-        ctx.fillText(label, card.x + 72, card.y + 27);
+        ctx.font = selected
+            ? (compact ? 'bold 16px monospace' : 'bold 19px monospace')
+            : (compact ? 'bold 15px monospace' : 'bold 18px monospace');
+        ctx.fillText(label, card.x + sidePad, card.y + topTextY);
 
         ctx.fillStyle = Theme.colors.text.hint;
-        ctx.font = '12px monospace';
-        ctx.fillText(subtitle, card.x + 72, card.y + 47);
+        ctx.font = compact ? '11px monospace' : '12px monospace';
+        ctx.fillText(subtitle, card.x + sidePad, card.y + subTextY);
         ctx.restore();
     }
 
@@ -556,6 +612,13 @@ class Menu {
         const border = primary
             ? colorWithAlpha(accentColor, 0.48)
             : (selected ? colorWithAlpha(accentColor, 0.36) : TouchUI.surfaceStroke(1));
+        const spacious = card.h >= 92;
+        const okW = primary ? 82 : 76;
+        const okH = primary ? 30 : 28;
+        const okX = card.x + card.w - okW - 20;
+        const okY = card.y + 16;
+        const titleY = card.y + (primary ? 40 : (spacious ? 34 : 28));
+        const subtitleY = card.y + (primary ? 66 : (spacious ? 58 : 48));
 
         TouchUI.drawPanel(ctx, card.x, card.y, card.w, card.h, {
             radius: card.radius,
@@ -567,7 +630,7 @@ class Menu {
             glowWidth: 2
         });
 
-        TouchUI.drawPill(ctx, card.x + card.w - 112, card.y + 14, 82, 28, 'OK', {
+        TouchUI.drawPill(ctx, okX, okY, okW, okH, 'OK', {
             accentColor,
             textColor: Theme.colors.text.primary,
             fillOpacity: primary ? 0.2 : 0.12,
@@ -578,58 +641,108 @@ class Menu {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = Theme.colors.text.primary;
-        ctx.font = 'bold 20px monospace';
-        ctx.fillText(label, card.x + 28, card.y + 28);
+        ctx.font = primary ? 'bold 24px monospace' : (spacious ? 'bold 22px monospace' : 'bold 20px monospace');
+        ctx.fillText(label, card.x + 22, titleY);
 
         ctx.fillStyle = Theme.colors.text.hint;
-        ctx.font = '12px monospace';
-        ctx.fillText(subtitle, card.x + 28, card.y + 48);
+        ctx.font = primary ? '13px monospace' : '12px monospace';
+        ctx.fillText(subtitle, card.x + 22, subtitleY);
         ctx.restore();
     }
 
     _getTouchMainLayout() {
-        const board = { x: 58, y: 134, w: CANVAS_W - 116, h: 424, radius: 28 };
-        const cardX = board.x + 22;
-        const cardW = board.w - 44;
-        const cardH = 64;
-        const gap = 14;
-        const firstY = board.y + 22;
+        const framePad = 18;
+        const panelGap = 18;
+        const contentX = framePad;
+        const contentY = 16;
+        const contentW = CANVAS_W - framePad * 2;
+        const panelH = CANVAS_H - 32;
+        const leftW = Math.max(430, Math.min(540, contentW * 0.61));
+        const rightW = contentW - leftW - panelGap;
+        const leftPanel = { x: contentX, y: contentY, w: leftW, h: panelH, radius: 28 };
+        const rightPanel = { x: leftPanel.x + leftPanel.w + panelGap, y: contentY, w: rightW, h: panelH, radius: 28 };
+        const footer = { x: contentX, y: contentY + panelH + 14, w: contentW, h: 46, radius: 18 };
+        const leftPad = 20;
+        const titleSpace = 124;
+        const gridGap = 14;
+        const leftGridX = leftPanel.x + leftPad;
+        const leftGridY = leftPanel.y + titleSpace;
+        const leftGridW = leftPanel.w - leftPad * 2;
+        const smallW = (leftGridW - gridGap) / 2;
+        const topCardH = 108;
+        const wideCardY = leftGridY + topCardH + 14;
+        const wideCardH = Math.max(126, leftPanel.y + leftPanel.h - leftPad - wideCardY);
+        const noteY = wideCardY + wideCardH + 14;
+        const noteH = leftPanel.y + leftPanel.h - leftPad - noteY;
+        const actionPad = 18;
+        const actionX = rightPanel.x + actionPad;
+        const actionW = rightPanel.w - actionPad * 2;
+        const primaryY = rightPanel.y + actionPad;
+        const primaryH = Math.floor((rightPanel.h - actionPad * 2 - 16) * 0.66);
+        const secondaryY = primaryY + primaryH + 16;
+        const secondaryH = rightPanel.y + rightPanel.h - actionPad - secondaryY;
 
         return {
-            board,
+            leftPanel,
+            rightPanel,
+            note: { x: leftGridX, y: noteY, w: leftGridW, h: Math.max(52, noteH), radius: 20 },
+            cta: { x: rightPanel.x, y: rightPanel.y, w: rightPanel.w, h: rightPanel.h, radius: rightPanel.radius },
+            footer,
             options: [
-                { x: cardX, y: firstY, w: cardW, h: cardH, radius: 22 },
-                { x: cardX, y: firstY + (cardH + gap), w: cardW, h: cardH, radius: 22 },
-                { x: cardX, y: firstY + (cardH + gap) * 2, w: cardW, h: cardH, radius: 22 },
-                { x: cardX, y: firstY + (cardH + gap) * 3 + 10, w: cardW, h: 56, radius: 20 },
-                { x: cardX, y: firstY + (cardH + gap) * 3 + 78, w: cardW, h: 56, radius: 20 }
+                { x: leftGridX, y: leftGridY, w: smallW, h: topCardH, radius: 22 },
+                { x: leftGridX + smallW + gridGap, y: leftGridY, w: smallW, h: topCardH, radius: 22 },
+                { x: leftGridX, y: wideCardY, w: leftGridW, h: wideCardH, radius: 22 },
+                { x: actionX, y: primaryY, w: actionW, h: primaryH, radius: 22 },
+                { x: actionX, y: secondaryY, w: actionW, h: secondaryH, radius: 22 }
             ]
         };
     }
 
+
     _getTouchSettingsLayout() {
         const items = this._getSettingsItems();
-        const board = { x: 58, y: 148, w: CANVAS_W - 116, h: 394, radius: 28 };
-        const cardX = board.x + 22;
-        const cardW = board.w - 44;
-        const gap = 14;
-        const firstY = board.y + 26;
+        const contentX = 40;
+        const contentY = 90;
+        const contentW = CANVAS_W - 80;
+        const leftW = Math.min(380, Math.max(300, contentW * 0.48));
+        const rightW = contentW - leftW - 16;
+        const panelH = 384;
+        const leftPanel = { x: contentX, y: contentY, w: leftW, h: panelH, radius: 28 };
+        const rightPanel = { x: leftPanel.x + leftPanel.w + 16, y: contentY, w: rightW, h: panelH, radius: 28 };
+        const footer = { x: contentX, y: contentY + panelH + 14, w: contentW, h: 46, radius: 18 };
+        const innerPad = 18;
+        const leftCardX = leftPanel.x + innerPad;
+        const leftCardW = leftPanel.w - innerPad * 2;
+        const leftCardY = leftPanel.y + 108;
+        const leftCardH = 92;
+        const leftGap = 12;
+        const noteY = leftCardY + (leftCardH + leftGap) * Math.min(2, items.length) + 6;
+        const noteH = leftPanel.y + leftPanel.h - innerPad - noteY;
+        const rightCardX = rightPanel.x + innerPad;
+        const rightCardW = rightPanel.w - innerPad * 2;
+        const rightStartY = rightPanel.y + 26;
+        const rightGap = 12;
         const options = [];
-        let nextY = firstY;
 
-        for (const item of items) {
-            const height = item.kind === 'adjust' ? 64 : (item.kind === 'back' ? 56 : 62);
-            const radius = item.kind === 'back' ? 20 : 22;
-            options.push({ x: cardX, y: nextY, w: cardW, h: height, radius, kind: item.kind });
-            nextY += height + gap;
+        for (let i = 0; i < items.length; i++) {
+            if (i < 2) {
+                options.push({ x: leftCardX, y: leftCardY + i * (leftCardH + leftGap), w: leftCardW, h: leftCardH, radius: 22, kind: items[i].kind });
+            } else {
+                const item = items[i];
+                const h = item.kind === 'back' ? 82 : 96;
+                const offsetIndex = i - 2;
+                const y = rightStartY + offsetIndex * (96 + rightGap);
+                options.push({ x: rightCardX, y, w: rightCardW, h, radius: 22, kind: item.kind });
+            }
         }
 
-        const lastCard = options[options.length - 1];
-        if (lastCard) {
-            board.h = Math.max(board.h, lastCard.y + lastCard.h - board.y + 18);
-        }
-
-        return { board, options };
+        return {
+            leftPanel,
+            rightPanel,
+            note: { x: leftCardX, y: noteY, w: leftCardW, h: Math.max(52, noteH), radius: 20 },
+            footer,
+            options
+        };
     }
 
     _getSettingsItems() {
