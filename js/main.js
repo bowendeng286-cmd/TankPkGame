@@ -55,6 +55,22 @@ function useBaseUiCanvas() {
     fitCanvas();
 }
 
+function useTouchMenuCanvas() {
+    const targetCols = 16;
+    const targetRows = 8;
+    if (COLS === targetCols && ROWS === targetRows) return;
+    setMapSize(targetCols, targetRows);
+    fitCanvas();
+}
+
+function useMenuCanvasForCurrentInput() {
+    if (input && input.touchEnabled) {
+        useTouchMenuCanvas();
+        return;
+    }
+    useBaseUiCanvas();
+}
+
 function randomizeRoundMapSize() {
     const cols = randInt(MAP_COLS_MIN, MAP_COLS_MAX);
     const rows = randInt(MAP_ROWS_MIN, MAP_ROWS_MAX);
@@ -616,7 +632,7 @@ function gameLoop(timestamp) {
 
     switch (gameState.current) {
         case STATE.MENU:
-            useBaseUiCanvas();
+            useMenuCanvasForCurrentInput();
             menu.update();
             menu.draw(ctx);
             if (menu.done) startGame(menu.result);
@@ -626,7 +642,7 @@ function gameLoop(timestamp) {
             }
             break;
         case STATE.SETTINGS:
-            useBaseUiCanvas();
+            useMenuCanvasForCurrentInput();
             menu.update();
             menu.draw(ctx);
             if (menu.openControlsConfig) {
